@@ -185,6 +185,69 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel }) => {
           placeholder="https://www.youtube.com/watch?v=..." />
       </div>
 
+      {/* Advanced fields - collapsible */}
+      <details className="border border-slate-200 rounded-md">
+        <summary className="cursor-pointer px-3 py-2 bg-slate-50 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+          進階欄位（重量 / 產地 / 保固 / 平台分類碼）
+        </summary>
+        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>商品狀態</label>
+            <select className={inputCls} value={form.condition}
+              onChange={e => update('condition', e.target.value as '新品' | '二手')}>
+              <option value="新品">新品</option>
+              <option value="二手">二手</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>商品產地</label>
+            <input className={inputCls} value={form.origin}
+              onChange={e => update('origin', e.target.value)}
+              placeholder="台灣 / 中國 / 日本…" />
+          </div>
+          <div>
+            <label className={labelCls}>商品重量（公克 g）</label>
+            <input type="number" min={0} className={inputCls} value={form.weightG || ''}
+              onChange={e => update('weightG', Number(e.target.value))}
+              placeholder="例如手機殼約 50" />
+          </div>
+          <div>
+            <label className={labelCls}>出貨天數</label>
+            <input type="number" min={1} className={inputCls} value={form.shippingDays || ''}
+              onChange={e => update('shippingDays', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelCls}>保固期間</label>
+            <input className={inputCls} value={form.warranty}
+              onChange={e => update('warranty', e.target.value)}
+              placeholder="例：30 天 / 不適用" />
+          </div>
+          <div>
+            <label className={labelCls}>商品成本（內部用，可空）</label>
+            <input type="number" min={0} className={inputCls} value={form.cost ?? ''}
+              onChange={e => update('cost', e.target.value ? Number(e.target.value) : undefined)} />
+          </div>
+          <div>
+            <label className={labelCls}>Momo 分類碼</label>
+            <input className={inputCls} value={form.momoCategoryCode ?? ''}
+              onChange={e => update('momoCategoryCode', e.target.value)}
+              placeholder="例：SC0410100040（從 Momo 後台取得）" />
+          </div>
+          <div>
+            <label className={labelCls}>Yahoo 分類碼</label>
+            <input className={inputCls} value={form.yahooCategoryCode ?? ''}
+              onChange={e => update('yahooCategoryCode', e.target.value)}
+              placeholder="從 Yahoo 後台分類表取得" />
+          </div>
+          <div className="md:col-span-2">
+            <label className={labelCls}>Pinkoi 分類</label>
+            <input className={inputCls} value={form.pinkoiCategory ?? ''}
+              onChange={e => update('pinkoiCategory', e.target.value)}
+              placeholder="例：飾品配件 > 手機殼" />
+          </div>
+        </div>
+      </details>
+
       <div className="flex gap-2 pt-2">
         <button type="submit"
           className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-md">

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Product } from '../types';
+import { EMPTY_PRODUCT } from '../types';
 import { scrapeProduct, type ScrapeResult } from '../lib/scraper';
 
 interface Props {
@@ -36,21 +37,10 @@ export const ScrapeImport: React.FC<Props> = ({ onImport }) => {
 
   const handleImport = () => {
     if (!result) return;
-    const p = result.partial;
     const product: Product = {
+      ...EMPTY_PRODUCT,
+      ...result.partial,
       id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      name: p.name ?? '',
-      description: p.description ?? '',
-      price: p.price ?? 0,
-      originalPrice: p.originalPrice,
-      stock: p.stock ?? 0,
-      model: p.model ?? '',
-      brand: p.brand ?? '',
-      category: p.category ?? '',
-      specs: p.specs ?? [],
-      imageUrls: p.imageUrls ?? [],
-      videoUrl: p.videoUrl ?? '',
-      tags: p.tags ?? '',
     };
     onImport(product);
     setResult(null);

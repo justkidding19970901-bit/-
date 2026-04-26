@@ -33,6 +33,9 @@ interface ShopifyProductJson {
       compare_at_price: string | null;
       sku: string;
       inventory_quantity?: number;
+      grams?: number;
+      weight?: number;
+      weight_unit?: string;
       option1?: string | null;
       option2?: string | null;
       option3?: string | null;
@@ -96,6 +99,23 @@ async function tryShopifyJson(url: string): Promise<ScrapeResult | null> {
     );
   }
 
+  // Shopify variants store weight in `grams` (or `weight` + `weight_unit`).
+  // Pick the first variant that reports a non-zero weight.
+  const weightG = (() => {
+    for (const v of p.variants ?? []) {
+      if (typeof v.grams === 'number' && v.grams > 0) return v.grams;
+      if (typeof v.weight === 'number' && v.weight > 0) {
+        const unit = (v.weight_unit ?? '').toLowerCase();
+        if (unit === 'g') return v.weight;
+        if (unit === 'kg') return v.weight * 1000;
+        if (unit === 'oz') return Math.round(v.weight * 28.3495);
+        if (unit === 'lb') return Math.round(v.weight * 453.592);
+        return v.weight;
+      }
+    }
+    return 0;
+  })();
+
   const partial: Partial<Omit<Product, 'id'>> = {
     name: p.title,
     description: stripHtml(p.body_html ?? ''),
@@ -109,6 +129,10 @@ async function tryShopifyJson(url: string): Promise<ScrapeResult | null> {
     imageUrls: images,
     videoUrl: '',
     tags,
+    weightG,
+    condition: '新品',
+    origin: '台灣',
+    shippingDays: 3,
   };
 
   return { partial, source: 'shopify-json', sourceUrl: url, warnings };
