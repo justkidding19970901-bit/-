@@ -3,6 +3,7 @@ import type { Product } from './types';
 import { ProductForm } from './components/ProductForm';
 import { ProductList } from './components/ProductList';
 import { ExportPanel } from './components/ExportPanel';
+import { ScrapeImport } from './components/ScrapeImport';
 
 const STORAGE_KEY = 'product_migration_v1';
 
@@ -71,12 +72,15 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <section className="lg:col-span-3 bg-white rounded-lg border border-slate-200 p-5 shadow-sm">
-          <ProductForm
-            editing={editing}
-            onSave={handleSave}
-            onCancel={() => setEditing(null)}
-          />
+        <section className="lg:col-span-3 space-y-4">
+          <ScrapeImport onImport={handleSave} />
+          <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-sm">
+            <ProductForm
+              editing={editing}
+              onSave={handleSave}
+              onCancel={() => setEditing(null)}
+            />
+          </div>
         </section>
 
         <section className="lg:col-span-2 space-y-4">
