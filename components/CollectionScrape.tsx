@@ -53,9 +53,9 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
 
   const runScrape = async (initial: BatchProgress) => {
     stopFlag.current = false;
-    let failedHandles = [...initial.failedHandles];
-    let collected = [...initial.collected];
-    let doneIndices = [...initial.doneIndices];
+    const failedHandles = [...initial.failedHandles];
+    const collected = [...initial.collected];
+    const doneIndices = [...initial.doneIndices];
     const doneSet = new Set(doneIndices);
 
     setProgress({
@@ -65,51 +65,64 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
       currentLabel: '準備…',
     });
 
+    // Build queue of remaining indices
+    const pending: number[] = [];
     for (let i = 0; i < initial.allHandles.length; i++) {
-      if (stopFlag.current) break;
-      if (doneSet.has(i)) continue;
-      const handle = initial.allHandles[i];
-      setProgress({
-        total: initial.allHandles.length,
-        done: doneIndices.length,
-        failed: failedHandles.length,
-        currentLabel: handle,
-      });
-      try {
-        const productUrl = buildProductUrlFromHandle(initial.origin, handle);
-        const r = await withRetry(() => scrapeProduct(productUrl), 3, 700);
-        if (initial.expandVariants && r.variants && r.variants.length > 1) {
-          for (let v = 0; v < r.variants.length; v++) {
+      if (!doneSet.has(i)) pending.push(i);
+    }
+
+    let cursor = 0;
+    let saveCounter = 0;
+    const CONCURRENCY = 4;
+
+    const worker = async () => {
+      while (!stopFlag.current) {
+        const myIdx = cursor++;
+        if (myIdx >= pending.length) return;
+        const i = pending[myIdx];
+        const handle = initial.allHandles[i];
+        setProgress(prev => ({
+          total: initial.allHandles.length,
+          done: doneIndices.length,
+          failed: failedHandles.length,
+          currentLabel: handle,
+        }));
+        try {
+          const productUrl = buildProductUrlFromHandle(initial.origin, handle);
+          const r = await withRetry(() => scrapeProduct(productUrl), 3, 700);
+          if (initial.expandVariants && r.variants && r.variants.length > 1) {
+            for (let v = 0; v < r.variants.length; v++) {
+              collected.push({
+                ...EMPTY_PRODUCT,
+                ...r.variants[v],
+                id: `p_${Date.now()}_${i}_${v}_${Math.random().toString(36).slice(2, 5)}`,
+              });
+            }
+          } else {
             collected.push({
               ...EMPTY_PRODUCT,
-              ...r.variants[v],
-              id: `p_${Date.now()}_${i}_${v}_${Math.random().toString(36).slice(2, 5)}`,
+              ...r.partial,
+              id: `p_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
             });
           }
-        } else {
-          collected.push({
-            ...EMPTY_PRODUCT,
-            ...r.partial,
-            id: `p_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
-          });
+        } catch {
+          failedHandles.push(handle);
         }
-      } catch {
-        failedHandles.push(handle);
+        doneIndices.push(i);
+        doneSet.add(i);
+        saveCounter++;
+        if (saveCounter % 3 === 0) {
+          saveBatchProgress({ ...initial, doneIndices, failedHandles, collected });
+        }
       }
-      doneIndices.push(i);
-      doneSet.add(i);
+    };
 
-      // Persist progress every 3 items so closing the tab doesn't lose work
-      if (i % 3 === 0 || i === initial.allHandles.length - 1) {
-        saveBatchProgress({
-          ...initial,
-          doneIndices,
-          failedHandles,
-          collected,
-        });
-      }
-      await new Promise(res => setTimeout(res, 350));
-    }
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, pending.length || 1) }, () => worker()),
+    );
+
+    // Final progress snapshot before continuing to completion logic below
+    saveBatchProgress({ ...initial, doneIndices, failedHandles, collected });
 
     if (stopFlag.current) {
       saveBatchProgress({ ...initial, doneIndices, failedHandles, collected });
@@ -250,8 +263,8 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
             自動展開所有變體（多型號商品會拆成多筆）— 推薦開啟
           </label>
           <div className="text-[11px] text-slate-500">
-            預估時間：約 {Math.ceil((handles.length * 1.5) / 60)} 分鐘 ·
-            每筆失敗自動重試 3 次 · 進度自動儲存
+            預估時間：約 {Math.max(1, Math.ceil((handles.length * 0.5) / 60))} 分鐘
+            （並行 4 條同時抓） · 每筆失敗重試 3 次 · 進度自動儲存
           </div>
           <button
             onClick={handleStartScrape}
@@ -263,7 +276,9 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
       )}
 
       {progress && (
-        <div className="border border-indigo-200 bg-indigo-50/40 rounded p-3 space-y-2">
+        <div className="border border-indigo-200 bg-indigo-50/40 rounded p-3 space-y-2"
+             role="status" aria-live="polite"
+             aria-label={`抓取進度 ${progress.done} / ${progress.total}`}>
           <div className="flex justify-between text-xs text-slate-700">
             <span className="font-semibold">{progress.done} / {progress.total}</span>
             {progress.failed > 0 && (

@@ -31,6 +31,28 @@ const App: React.FC = () => {
     }
   }, [products]);
 
+  // Global keyboard shortcut: Cmd/Ctrl+S downloads a backup
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (products.length === 0) return;
+        const payload = { version: 1, exportedAt: new Date().toISOString(), products };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+        a.download = `products-backup-${ts}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [products]);
+
   // Drop selection ids that no longer point to existing products
   useEffect(() => {
     if (selectedIds.size === 0) return;
@@ -75,6 +97,14 @@ const App: React.FC = () => {
       model: p.model ? `${p.model}-COPY` : '',
     };
     setProducts(prev => [...prev, copy]);
+  };
+
+  const handleSplitToVariants = (replacingId: string | null, variants: Product[]) => {
+    setProducts(prev => {
+      const filtered = replacingId ? prev.filter(p => p.id !== replacingId) : prev;
+      return [...filtered, ...variants];
+    });
+    setEditing(null);
   };
 
   const handleClearAll = () => {
@@ -124,6 +154,7 @@ const App: React.FC = () => {
               editing={editing}
               onSave={handleSave}
               onCancel={() => setEditing(null)}
+              onSplitToVariants={handleSplitToVariants}
             />
           </div>
         </section>

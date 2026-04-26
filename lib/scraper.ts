@@ -491,6 +491,24 @@ export async function scrapeProduct(rawUrl: string): Promise<ScrapeResult> {
 
   const og = parseFromOpenGraph(doc, url);
   const hasOg = !!(og.name && (og.imageUrls?.length || og.description));
+
+  // Heuristic: if neither JSON-LD nor OG yielded usable data and the HTML is
+  // suspiciously short / lacks <h1> / has a #root mount-point, this is almost
+  // certainly a SPA whose content is rendered client-side. The browser path
+  // can never see that without a headless renderer.
+  const looksLikeSpa = !ld && !hasOg && (
+    html.length < 8000 ||
+    !doc.querySelector('h1') ||
+    !!doc.querySelector('#root, #app, [data-reactroot], [ng-app]')
+  );
+  if (looksLikeSpa) {
+    throw new Error(
+      '此頁面像是 SPA（內容由 JavaScript 動態載入），免費代理抓不到資料。\n' +
+      '解法：在原網頁打開「檢視原始碼」找 <script type="application/ld+json"> 區塊，' +
+      '把整段 JSON 複製，用「📋 貼上 JSON-LD」按鈕匯入。',
+    );
+  }
+
   if (!og.name) warnings.push('找不到商品名稱');
   if (!og.price) warnings.push('找不到價格，請手動填寫');
   if (!og.imageUrls?.length) warnings.push('找不到商品圖片');
@@ -499,6 +517,38 @@ export async function scrapeProduct(rawUrl: string): Promise<ScrapeResult> {
     partial: og,
     source: hasOg ? 'open-graph' : 'fallback',
     sourceUrl: url,
+    warnings,
+  };
+}
+
+/**
+ * Parse a manually-pasted JSON-LD blob (or a full JSON-LD `@graph` document)
+ * into a Product partial. Used as the SPA-fallback entry point: when the
+ * automated scraper can't reach the page, the user opens "檢視原始碼", finds
+ * the <script type="application/ld+json"> block, and pastes it here.
+ */
+export function parsePastedJsonLd(text: string, sourceUrl = ''): ScrapeResult {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('內容是空的');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (e) {
+    throw new Error(`不是合法的 JSON：${(e as Error).message}`);
+  }
+  const product = pickProductFromLd(parsed);
+  if (!product) {
+    throw new Error('這段 JSON 裡找不到 Product 結構（@type 必須是 Product）');
+  }
+  const partial = parseFromJsonLd(product, sourceUrl || 'https://example.com');
+  const warnings: string[] = [];
+  if (!partial.name) warnings.push('JSON 裡找不到商品名稱');
+  if (!partial.price) warnings.push('JSON 裡找不到價格');
+  if (!partial.imageUrls?.length) warnings.push('JSON 裡找不到圖片');
+  return {
+    partial: { ...partial, condition: '新品', origin: '台灣', shippingDays: 3 },
+    source: 'json-ld',
+    sourceUrl: sourceUrl || '(手動貼上)',
     warnings,
   };
 }

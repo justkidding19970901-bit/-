@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Product } from '../types';
 import { EMPTY_PRODUCT } from '../types';
-import { scrapeProduct, type ScrapeResult } from '../lib/scraper';
+import { scrapeProduct, parsePastedJsonLd, type ScrapeResult } from '../lib/scraper';
 
 interface Props {
   onImport: (p: Product) => void;
@@ -28,6 +28,21 @@ export const ScrapeImport: React.FC<Props> = ({ onImport, onImportMany }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<ScrapeResult | null>(null);
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+
+  const handlePasteSubmit = () => {
+    setError('');
+    setResult(null);
+    try {
+      const r = parsePastedJsonLd(pasteText, url);
+      setResult(r);
+      setShowPaste(false);
+      setPasteText('');
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   const handleFetch = async () => {
     setError('');
@@ -85,6 +100,7 @@ export const ScrapeImport: React.FC<Props> = ({ onImport, onImportMany }) => {
           onChange={e => setUrl(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleFetch(); } }}
           disabled={loading}
+          aria-label="商品頁網址"
         />
         <button
           onClick={handleFetch}
@@ -95,12 +111,41 @@ export const ScrapeImport: React.FC<Props> = ({ onImport, onImportMany }) => {
         </button>
       </div>
 
-      {error && (
-        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-3 mb-2 leading-relaxed">
-          ❌ {error}
-          <div className="text-slate-500 mt-1">
-            可能原因：網址錯誤 / 該頁需登入 / 公開代理被該站封鎖。可改用「手動輸入」表單。
+      <div className="flex justify-end mb-2">
+        <button
+          type="button"
+          onClick={() => setShowPaste(s => !s)}
+          className="text-[11px] text-slate-500 hover:text-indigo-700 underline"
+          aria-expanded={showPaste}
+        >
+          📋 貼上 JSON-LD（SPA / 抓取失敗時的後備）
+        </button>
+      </div>
+
+      {showPaste && (
+        <div className="mb-3 border border-slate-300 bg-slate-50 rounded p-3 space-y-2">
+          <div className="text-[11px] text-slate-600 leading-relaxed">
+            在原網頁按 <kbd className="bg-white border px-1 rounded">Ctrl/⌘+U</kbd> 開啟原始碼，
+            搜尋 <code className="bg-white border px-1 rounded">application/ld+json</code>，
+            把 <code className="bg-white border px-1 rounded">{`<script>`}</code> 標籤裡面的 JSON 整段複製，貼進下面：
           </div>
+          <textarea
+            className="w-full h-32 font-mono text-[11px] rounded border border-slate-300 bg-white p-2"
+            placeholder='{"@context":"https://schema.org","@type":"Product",...}'
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+            aria-label="貼上 JSON-LD 內容"
+          />
+          <button onClick={handlePasteSubmit} disabled={!pasteText.trim()}
+            className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-300 text-white rounded text-xs font-bold">
+            從 JSON-LD 解析
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-3 mb-2 leading-relaxed whitespace-pre-wrap">
+          ❌ {error}
         </div>
       )}
 

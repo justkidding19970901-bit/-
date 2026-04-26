@@ -72,8 +72,9 @@ export const ProductList: React.FC<Props> = ({
           className="flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           value={query}
           onChange={e => setQuery(e.target.value)}
+          aria-label="搜尋商品"
         />
-        <span className="text-xs text-slate-500 shrink-0">
+        <span className="text-xs text-slate-500 shrink-0" aria-live="polite">
           {filtered.length}/{products.length}
         </span>
       </div>
@@ -95,11 +96,12 @@ export const ProductList: React.FC<Props> = ({
       )}
 
       {filtered.length === 0 ? (
-        <div className="text-center py-6 text-sm text-slate-400">
+        <div className="text-center py-6 text-sm text-slate-400" role="status">
           沒有符合「{query}」的商品
         </div>
       ) : (
-        <ul className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+        <ul className="space-y-2 max-h-[600px] overflow-y-auto pr-1"
+            role="list" aria-label={`商品清單，共 ${filtered.length} 筆`}>
           {filtered.map(p => {
             const isDupe = dupeProductIds.has(p.id);
             const isSelected = selectedIds.has(p.id);
@@ -110,7 +112,8 @@ export const ProductList: React.FC<Props> = ({
                   isDupe ? 'border-rose-300' : 'border-slate-200'
                 } hover:shadow-sm`}>
                 <input type="checkbox" className="shrink-0"
-                  checked={isSelected} onChange={() => toggleOne(p.id)} />
+                  checked={isSelected} onChange={() => toggleOne(p.id)}
+                  aria-label={`選取 ${p.name}`} />
                 <div className="w-12 h-12 shrink-0 bg-slate-100 rounded overflow-hidden">
                   {p.imageUrls[0] ? (
                     <img src={p.imageUrls[0]} alt={p.name} className="w-full h-full object-cover"

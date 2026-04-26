@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Product, ProductSpec } from '../types';
 import { EMPTY_PRODUCT } from '../types';
 import { sanitizeHtml } from '../lib/htmlSanitize';
@@ -7,17 +7,71 @@ interface Props {
   editing: Product | null;
   onSave: (product: Product) => void;
   onCancel: () => void;
+  onSplitToVariants: (replacingId: string | null, variants: Product[]) => void;
+}
+
+/**
+ * Cartesian product of every spec's `/`-separated values. Returns a list of
+ * combinations; each combination is a parallel array to `axes` (so axes[i] is
+ * the spec name for the i-th element of every combination).
+ */
+function cartesianFromSpecs(specs: ProductSpec[]): { axes: string[]; combos: string[][] } {
+  const axes: string[] = [];
+  const lists: string[][] = [];
+  for (const s of specs) {
+    const values = s.value.split(/[\/／,，]/).map(v => v.trim()).filter(Boolean);
+    if (values.length > 0) {
+      axes.push(s.name);
+      lists.push(values);
+    }
+  }
+  if (!lists.length) return { axes: [], combos: [] };
+  const combos = lists.reduce<string[][]>(
+    (acc, list) => acc.flatMap(prefix => list.map(v => [...prefix, v])),
+    [[]],
+  );
+  return { axes, combos };
 }
 
 const inputCls =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500';
 const labelCls = 'block text-sm font-medium text-slate-700 mb-1';
 
-export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel }) => {
+export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel, onSplitToVariants }) => {
   const [form, setForm] = useState<Omit<Product, 'id'>>(editing ?? EMPTY_PRODUCT);
   const [imageInput, setImageInput] = useState('');
   const [specName, setSpecName] = useState('');
   const [specValue, setSpecValue] = useState('');
+
+  const variantPreview = useMemo(() => cartesianFromSpecs(form.specs), [form.specs]);
+  const canSplit = variantPreview.combos.length > 1;
+
+  const handleSplitVariants = () => {
+    if (!canSplit) return;
+    if (!form.name.trim()) {
+      alert('請先填寫商品名稱');
+      return;
+    }
+    if (!confirm(`將拆出 ${variantPreview.combos.length} 筆獨立商品（每個變體一筆，可分別編輯價格 / 庫存 / SKU）。繼續？`)) {
+      return;
+    }
+    const variants: Product[] = variantPreview.combos.map((combo, idx) => {
+      const variantSpecs: ProductSpec[] = variantPreview.axes.map((name, i) => ({
+        name, value: combo[i],
+      }));
+      const suffix = combo.join(' / ');
+      const baseModel = form.model || form.name;
+      return {
+        ...EMPTY_PRODUCT,
+        ...form,
+        id: `p_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+        name: `${form.name} - ${suffix}`,
+        model: `${baseModel}-${combo.map(v => v.replace(/\s+/g, '')).join('-')}`,
+        specs: variantSpecs,
+      };
+    });
+    onSplitToVariants(editing?.id ?? null, variants);
+  };
 
   useEffect(() => {
     if (editing) {
@@ -66,7 +120,8 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5"
+          aria-label={editing ? '編輯商品表單' : '新增商品表單'}>
       <h2 className="text-lg font-bold text-slate-800">
         {editing ? '編輯商品' : '新增商品'}
       </h2>
@@ -135,54 +190,148 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel }) => {
         <label className={labelCls}>規格（顏色、尺寸、材質等）</label>
         <div className="flex gap-2">
           <input className={inputCls} placeholder="規格名（例：顏色）"
-            value={specName} onChange={e => setSpecName(e.target.value)} />
-          <input className={inputCls} placeholder="規格值（例：黑色）"
-            value={specValue} onChange={e => setSpecValue(e.target.value)} />
+            value={specName} onChange={e => setSpecName(e.target.value)}
+            aria-label="規格名稱" />
+          <input className={inputCls} placeholder="規格值（多值用 / 分隔，例：紅/藍/黑）"
+            value={specValue} onChange={e => setSpecValue(e.target.value)}
+            aria-label="規格值" />
           <button type="button" onClick={addSpec}
             className="shrink-0 px-3 py-2 text-sm font-medium text-white bg-slate-700 hover:bg-slate-600 rounded-md">
             加入
           </button>
         </div>
         {form.specs.length > 0 && (
-          <ul className="mt-2 flex flex-wrap gap-2">
+          <ul className="mt-2 flex flex-wrap gap-2" aria-label="已加入的規格">
             {form.specs.map((s, i) => (
               <li key={i} className="flex items-center gap-2 bg-slate-100 rounded-full px-3 py-1 text-sm">
                 <span>{s.name}: {s.value}</span>
                 <button type="button" onClick={() => removeSpec(i)}
+                  aria-label={`刪除規格 ${s.name}`}
                   className="text-slate-500 hover:text-red-600">×</button>
               </li>
             ))}
           </ul>
         )}
+        {canSplit && (
+          <div className="mt-3 border border-violet-200 bg-violet-50 rounded p-3 space-y-2">
+            <div className="text-xs font-semibold text-violet-900">
+              🪄 規格矩陣偵測 — 將自動產生 {variantPreview.combos.length} 個變體
+            </div>
+            <div className="overflow-x-auto">
+              <table className="text-[11px] text-slate-700 border-collapse">
+                <thead>
+                  <tr>
+                    {variantPreview.axes.map(a => (
+                      <th key={a} className="border border-violet-200 bg-violet-100 px-2 py-1 text-left font-semibold">
+                        {a}
+                      </th>
+                    ))}
+                    <th className="border border-violet-200 bg-violet-100 px-2 py-1 text-left font-semibold">SKU 預覽</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {variantPreview.combos.slice(0, 8).map((combo, i) => (
+                    <tr key={i}>
+                      {combo.map((v, j) => (
+                        <td key={j} className="border border-violet-100 px-2 py-1">{v}</td>
+                      ))}
+                      <td className="border border-violet-100 px-2 py-1 font-mono text-slate-500">
+                        {(form.model || form.name || 'SKU')}-{combo.map(v => v.replace(/\s+/g, '')).join('-')}
+                      </td>
+                    </tr>
+                  ))}
+                  {variantPreview.combos.length > 8 && (
+                    <tr>
+                      <td colSpan={variantPreview.axes.length + 1}
+                          className="border border-violet-100 px-2 py-1 text-slate-500 italic">
+                        …還有 {variantPreview.combos.length - 8} 筆
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <button type="button" onClick={handleSplitVariants}
+              className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-2 rounded text-sm">
+              🪄 拆成 {variantPreview.combos.length} 筆獨立變體
+              {editing ? '（取代目前這筆）' : ''}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Images */}
       <div>
-        <label className={labelCls}>商品圖片網址（可加多張，第一張為主圖）</label>
+        <label className={labelCls}>
+          商品圖片網址（可加多張，第一張為主圖。<span className="text-slate-500 font-normal">拖拉可排序</span>）
+        </label>
         <div className="flex gap-2">
           <input className={inputCls} placeholder="https://..."
             value={imageInput}
             onChange={e => setImageInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addImage(); } }} />
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addImage(); } }}
+            aria-label="新增圖片網址" />
           <button type="button" onClick={addImage}
             className="shrink-0 px-3 py-2 text-sm font-medium text-white bg-slate-700 hover:bg-slate-600 rounded-md">
             加入
           </button>
         </div>
         {form.imageUrls.length > 0 && (
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <ul className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2"
+              aria-label="商品圖片清單，拖拉可排序">
             {form.imageUrls.map((url, i) => (
-              <div key={i} className="relative group border rounded-md overflow-hidden bg-slate-100 aspect-square">
-                <img src={url} alt={`${i + 1}`} className="w-full h-full object-cover"
+              <li
+                key={`${url}-${i}`}
+                draggable
+                onDragStart={e => {
+                  e.dataTransfer.setData('text/plain', String(i));
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                onDrop={e => {
+                  e.preventDefault();
+                  const from = Number(e.dataTransfer.getData('text/plain'));
+                  if (Number.isNaN(from) || from === i) return;
+                  const next = [...form.imageUrls];
+                  const [moved] = next.splice(from, 1);
+                  next.splice(i, 0, moved);
+                  update('imageUrls', next);
+                }}
+                className="relative group border rounded-md overflow-hidden bg-slate-100 aspect-square cursor-move"
+                aria-label={`圖片 ${i + 1}${i === 0 ? '（主圖）' : ''}`}
+              >
+                <img src={url} alt={`商品圖 ${i + 1}`} className="w-full h-full object-cover pointer-events-none"
                   onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                <div className="absolute top-1 left-1 flex gap-1">
+                  <button type="button"
+                    aria-label="向前移動"
+                    disabled={i === 0}
+                    onClick={() => {
+                      const next = [...form.imageUrls];
+                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                      update('imageUrls', next);
+                    }}
+                    className="bg-black/60 text-white text-xs rounded w-5 h-5 leading-5 text-center opacity-0 group-hover:opacity-100 disabled:opacity-20">‹</button>
+                  <button type="button"
+                    aria-label="向後移動"
+                    disabled={i === form.imageUrls.length - 1}
+                    onClick={() => {
+                      const next = [...form.imageUrls];
+                      [next[i], next[i + 1]] = [next[i + 1], next[i]];
+                      update('imageUrls', next);
+                    }}
+                    className="bg-black/60 text-white text-xs rounded w-5 h-5 leading-5 text-center opacity-0 group-hover:opacity-100 disabled:opacity-20">›</button>
+                </div>
                 <button type="button" onClick={() => removeImage(i)}
+                  aria-label={`刪除圖片 ${i + 1}`}
                   className="absolute top-1 right-1 bg-black/60 text-white text-xs rounded-full w-6 h-6 leading-6 text-center opacity-0 group-hover:opacity-100">×</button>
                 {i === 0 && (
                   <span className="absolute bottom-1 left-1 bg-indigo-600 text-white text-[10px] px-1.5 rounded">主圖</span>
                 )}
-              </div>
+                <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 rounded">{i + 1}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
 
