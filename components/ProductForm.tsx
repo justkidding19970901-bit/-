@@ -2,6 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Product, ProductSpec } from '../types';
 import { EMPTY_PRODUCT } from '../types';
 import { sanitizeHtml } from '../lib/htmlSanitize';
+import {
+  loadTemplates, addTemplate, removeTemplate, applyTemplate,
+  type ProductTemplate,
+} from '../lib/templates';
 
 interface Props {
   editing: Product | null;
@@ -45,6 +49,30 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel, onSpli
 
   const variantPreview = useMemo(() => cartesianFromSpecs(form.specs), [form.specs]);
   const canSplit = variantPreview.combos.length > 1;
+  const [templates, setTemplates] = useState<ProductTemplate[]>(() => loadTemplates());
+
+  const handleSaveAsTemplate = () => {
+    const name = prompt('範本名稱（之後可從上方下拉套用）');
+    if (!name?.trim()) return;
+    const fullProduct: Product = { ...form, id: 'tmp' };
+    addTemplate(name, fullProduct);
+    setTemplates(loadTemplates());
+  };
+
+  const handleApplyTemplate = (id: string) => {
+    if (!id) return;
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+    setForm(prev => ({ ...EMPTY_PRODUCT, ...applyTemplate(tpl, prev) } as Omit<Product, 'id'>));
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+    if (!confirm(`刪除範本「${tpl.name}」？`)) return;
+    removeTemplate(id);
+    setTemplates(loadTemplates());
+  };
 
   const handleSplitVariants = () => {
     if (!canSplit) return;
@@ -122,9 +150,41 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel, onSpli
   return (
     <form onSubmit={handleSubmit} className="space-y-5"
           aria-label={editing ? '編輯商品表單' : '新增商品表單'}>
-      <h2 className="text-lg font-bold text-slate-800">
-        {editing ? '編輯商品' : '新增商品'}
-      </h2>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h2 className="text-lg font-bold text-slate-800">
+          {editing ? '編輯商品' : '新增商品'}
+        </h2>
+        <div className="flex items-center gap-2 text-xs">
+          {templates.length > 0 && (
+            <>
+              <select
+                onChange={e => { handleApplyTemplate(e.target.value); e.target.value = ''; }}
+                className="rounded border border-slate-300 bg-white px-2 py-1"
+                aria-label="套用範本"
+              >
+                <option value="">📋 套用範本…</option>
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <select
+                onChange={e => { if (e.target.value) handleDeleteTemplate(e.target.value); e.target.value = ''; }}
+                className="rounded border border-slate-300 bg-white px-2 py-1"
+                aria-label="管理範本"
+              >
+                <option value="">🗑 刪範本…</option>
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+          <button type="button" onClick={handleSaveAsTemplate}
+            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-medium">
+            💾 存為範本
+          </button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>

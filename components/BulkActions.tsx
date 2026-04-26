@@ -3,6 +3,7 @@ import type { Product } from '../types';
 import { autoFixDuplicateSkus, findDuplicateSkus } from '../lib/csvExport';
 import { sanitizeHtml } from '../lib/htmlSanitize';
 import { checkImageUrls, type ImageStatus } from '../lib/imageCheck';
+import { downloadProductImagesAsZip, type ZipProgress } from '../lib/imageZip';
 
 interface Props {
   products: Product[];
@@ -28,6 +29,8 @@ export const BulkActions: React.FC<Props> = ({ products, selectedIds, onUpdate, 
   const [categoryValue, setCategoryValue] = useState('');
   const [imageProgress, setImageProgress] = useState<{ done: number; total: number } | null>(null);
   const [imageReport, setImageReport] = useState<ImageReport | null>(null);
+  const [zipProgress, setZipProgress] = useState<ZipProgress | null>(null);
+  const [zipResult, setZipResult] = useState<{ success: number; failed: number } | null>(null);
 
   const targetIds: Set<string> = selectedIds.size > 0 ? selectedIds : new Set(products.map(p => p.id));
   const targetCount = targetIds.size;
@@ -97,6 +100,25 @@ export const BulkActions: React.FC<Props> = ({ products, selectedIds, onUpdate, 
 
   const applySanitize = () => {
     updateSelected(p => ({ ...p, description: sanitizeHtml(p.description) }));
+  };
+
+  const runImageZip = async () => {
+    setZipResult(null);
+    const targetProducts = products.filter(p => targetIds.has(p.id));
+    const total = targetProducts.reduce((acc, p) => acc + p.imageUrls.length, 0);
+    if (!total) {
+      alert('沒有圖片可下載');
+      return;
+    }
+    setZipProgress({ done: 0, total, failed: 0, currentLabel: '準備…' });
+    try {
+      const r = await downloadProductImagesAsZip(targetProducts, p => setZipProgress(p));
+      setZipResult({ success: r.success, failed: r.failed });
+    } catch (err) {
+      alert(`打包失敗：${(err as Error).message}`);
+    } finally {
+      setZipProgress(null);
+    }
   };
 
   const runImageCheck = async () => {
@@ -214,7 +236,33 @@ export const BulkActions: React.FC<Props> = ({ products, selectedIds, onUpdate, 
                 className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-300 text-white rounded text-xs font-bold">
                 {imageProgress ? `檢查圖片中 ${imageProgress.done}/${imageProgress.total}` : '檢查圖片連結'}
               </button>
+              <button onClick={runImageZip}
+                disabled={!!zipProgress}
+                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 disabled:bg-slate-300 text-white rounded text-xs font-bold">
+                {zipProgress ? `打包中 ${zipProgress.done}/${zipProgress.total}` : '📦 圖片打包成 zip'}
+              </button>
             </div>
+            {zipProgress && (
+              <div className="text-[11px] text-slate-600 mt-1">
+                正在抓：{zipProgress.currentLabel}
+                {zipProgress.failed > 0 && (
+                  <span className="text-amber-700 ml-2">失敗 {zipProgress.failed}</span>
+                )}
+              </div>
+            )}
+            {zipResult && (
+              <div className="text-xs mt-2 p-2 rounded bg-slate-50 border border-slate-200">
+                {zipResult.failed === 0 ? (
+                  <span className="text-emerald-700">
+                    ✓ 已打包 {zipResult.success} 張圖片，瀏覽器自動下載 .zip
+                  </span>
+                ) : (
+                  <span className="text-amber-700">
+                    部分成功：成功 {zipResult.success} 張、失敗 {zipResult.failed} 張（被 CDN 擋）
+                  </span>
+                )}
+              </div>
+            )}
             {imageReport && (
               <div className="text-xs mt-2 p-2 rounded bg-slate-50 border border-slate-200">
                 {imageReport.broken.length === 0 ? (

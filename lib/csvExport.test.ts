@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildCSV, validateForPlatform, findDuplicateSkus, autoFixDuplicateSkus,
 } from './csvExport';
+import { previewMerge } from './syncMerge';
 import type { Product } from '../types';
 import { EMPTY_PRODUCT } from '../types';
 
@@ -96,6 +97,50 @@ describe('validateForPlatform', () => {
     ]);
     const skuErrors = issues.filter(i => i.message.includes('SKU') && i.level === 'error');
     expect(skuErrors.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('previewMerge', () => {
+  it('marks every row as new in append mode', () => {
+    const diffs = previewMerge([], [makeProduct({ model: 'X' })], 'append');
+    expect(diffs.every(d => d.kind === 'new')).toBe(true);
+  });
+
+  it('marks every row as replace in replace mode', () => {
+    const diffs = previewMerge([makeProduct({ id: 'a' })], [makeProduct({ id: 'b' })], 'replace');
+    expect(diffs.every(d => d.kind === 'replace')).toBe(true);
+  });
+
+  it('flags new SKUs as new in sync mode', () => {
+    const diffs = previewMerge(
+      [makeProduct({ model: 'A' })],
+      [makeProduct({ model: 'B' })],
+      'sync',
+    );
+    expect(diffs[0].kind).toBe('new');
+  });
+
+  it('reports field-level changes for matched SKUs', () => {
+    const diffs = previewMerge(
+      [makeProduct({ model: 'X', price: 100, stock: 5 })],
+      [makeProduct({ model: 'X', price: 200, stock: 5 })],
+      'sync',
+    );
+    expect(diffs[0].kind).toBe('update');
+    if (diffs[0].kind === 'update') {
+      const priceChange = diffs[0].changes.find(c => c.field === 'price');
+      expect(priceChange?.from).toBe(100);
+      expect(priceChange?.to).toBe(200);
+    }
+  });
+
+  it('marks identical inputs as unchanged', () => {
+    const diffs = previewMerge(
+      [makeProduct({ model: 'X', price: 100 })],
+      [makeProduct({ model: 'X', price: 100 })],
+      'sync',
+    );
+    expect(diffs[0].kind).toBe('unchanged');
   });
 });
 

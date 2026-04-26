@@ -7,42 +7,55 @@ import { ScrapeImport } from './components/ScrapeImport';
 import { CollectionScrape } from './components/CollectionScrape';
 import { DataToolbar } from './components/DataToolbar';
 import { BulkActions } from './components/BulkActions';
-import { mergeProducts, type ImportMode, type MergeReport } from './lib/syncMerge';
+import { mergeProducts, previewMerge, type ImportMode, type MergeReport, type DiffEntry } from './lib/syncMerge';
+import { loadProducts, saveProducts } from './lib/migration';
+import { DiffPreview } from './components/DiffPreview';
 
 const STORAGE_KEY = 'product_migration_v1';
 
 const App: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as Product[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [products, setProducts] = useState<Product[]>(() => loadProducts(STORAGE_KEY));
   const [editing, setEditing] = useState<Product | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [syncMode, setSyncMode] = useState<boolean>(true);
+  const [diffPreviewMode, setDiffPreviewMode] = useState<boolean>(true);
   const [lastReport, setLastReport] = useState<MergeReport | null>(null);
+  const [pendingImport, setPendingImport] = useState<{ incoming: Product[]; mode: ImportMode; diffs: DiffEntry[] } | null>(null);
 
-  const importProducts = (incoming: Product[], mode: ImportMode) => {
-    if (!incoming.length) return;
+  const applyImport = (incoming: Product[], mode: ImportMode) => {
     setProducts(prev => {
       const { next, report } = mergeProducts(prev, incoming, mode);
       setLastReport(report);
       return next;
     });
-    // Auto-clear the toast after 6 seconds
     setTimeout(() => setLastReport(null), 6000);
   };
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-    } catch (e) {
-      // localStorage typically caps at ~5MB; warn the user once
-      console.warn('localStorage 存取失敗，可能已超過容量上限', e);
+  const importProducts = (incoming: Product[], mode: ImportMode) => {
+    if (!incoming.length) return;
+    // Skip the diff preview when nothing exists yet, when previewing is off,
+    // or for trivial append-only flows where there's nothing useful to show.
+    if (!diffPreviewMode || products.length === 0 || mode === 'append') {
+      applyImport(incoming, mode);
+      return;
     }
+    const diffs = previewMerge(products, incoming, mode);
+    const hasMeaningful = diffs.some(d => d.kind === 'update' || d.kind === 'replace');
+    if (!hasMeaningful) {
+      applyImport(incoming, mode);
+      return;
+    }
+    setPendingImport({ incoming, mode, diffs });
+  };
+
+  const confirmPendingImport = () => {
+    if (!pendingImport) return;
+    applyImport(pendingImport.incoming, pendingImport.mode);
+    setPendingImport(null);
+  };
+
+  useEffect(() => {
+    saveProducts(STORAGE_KEY, products);
   }, [products]);
 
   // Global keyboard shortcut: Cmd/Ctrl+S downloads a backup
@@ -158,6 +171,12 @@ const App: React.FC = () => {
               <span className="font-medium">SKU 增量同步</span>
               <span className="text-slate-400">— 抓取重複商品時自動更新而非新增</span>
             </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={diffPreviewMode}
+                onChange={e => setDiffPreviewMode(e.target.checked)} />
+              <span className="font-medium">同步前預覽差異</span>
+              <span className="text-slate-400">— 看清楚會改哪幾筆再套用</span>
+            </label>
           </div>
           {storageWarn && (
             <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
@@ -212,6 +231,14 @@ const App: React.FC = () => {
       <footer className="max-w-7xl mx-auto px-4 py-6 text-center text-xs text-slate-400">
         資料儲存於本機瀏覽器，重新整理不會遺失。清除瀏覽器資料前請先「下載備份檔」。
       </footer>
+
+      {pendingImport && (
+        <DiffPreview
+          diffs={pendingImport.diffs}
+          onConfirm={confirmPendingImport}
+          onCancel={() => setPendingImport(null)}
+        />
+      )}
     </div>
   );
 };

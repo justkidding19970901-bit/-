@@ -136,19 +136,57 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
       return;
     }
 
+    onImportMany(collected);
+    if (failedHandles.length > 0) {
+      // Keep progress + handles + origin around so user can retry just the
+      // failed ones; clear collected (already imported above).
+      saveBatchProgress({
+        ...initial, doneIndices, failedHandles, collected: [],
+      });
+      setResumable(loadBatchProgress());
+      setProgress({
+        total: initial.allHandles.length,
+        done: doneIndices.length,
+        failed: failedHandles.length,
+        currentLabel: `完成（${failedHandles.length} 筆失敗，可重試）`,
+      });
+      return;
+    }
+
     saveBatchProgress(null);
     setResumable(null);
     setProgress({
       total: initial.allHandles.length,
       done: doneIndices.length,
       failed: failedHandles.length,
-      currentLabel: '完成',
+      currentLabel: '全部完成',
     });
-    onImportMany(collected);
     setTimeout(() => {
       reset();
       setUrl('');
     }, 1500);
+  };
+
+  const handleRetryFailed = async () => {
+    if (!resumable?.failedHandles.length) return;
+    const failed = resumable.failedHandles;
+    // Re-run only the failed handles by treating them as a fresh batch
+    const retryBatch: BatchProgress = {
+      collectionUrl: resumable.collectionUrl,
+      origin: resumable.origin,
+      allHandles: failed,
+      doneIndices: [],
+      failedHandles: [],
+      collected: [],
+      expandVariants: resumable.expandVariants,
+      startedAt: new Date().toISOString(),
+    };
+    saveBatchProgress(retryBatch);
+    setResumable(retryBatch);
+    setHandles(failed);
+    setOrigin(resumable.origin);
+    setExpandVariants(resumable.expandVariants);
+    await runScrape(retryBatch);
   };
 
   const handleStartScrape = async () => {
@@ -204,13 +242,36 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
           <div className="text-slate-700">
             已抓 {resumable.doneIndices.length} / {resumable.allHandles.length}，
             收集 {resumable.collected.length} 筆，
-            失敗 {resumable.failedHandles.length} 個
+            失敗 <span className={resumable.failedHandles.length > 0 ? 'text-rose-700 font-bold' : ''}>
+              {resumable.failedHandles.length}
+            </span> 個
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleResume}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-bold">
-              ▶ 繼續上次抓取
-            </button>
+          {resumable.failedHandles.length > 0 && (
+            <details className="text-[11px] text-slate-600">
+              <summary className="cursor-pointer hover:text-slate-900">看失敗清單</summary>
+              <ul className="mt-1 list-disc pl-4 max-h-24 overflow-y-auto">
+                {resumable.failedHandles.slice(0, 20).map((h, i) => (
+                  <li key={i} className="truncate font-mono">{h}</li>
+                ))}
+                {resumable.failedHandles.length > 20 && (
+                  <li className="italic text-slate-500">…還有 {resumable.failedHandles.length - 20} 筆</li>
+                )}
+              </ul>
+            </details>
+          )}
+          <div className="flex gap-2 flex-wrap">
+            {resumable.doneIndices.length < resumable.allHandles.length && (
+              <button onClick={handleResume}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-bold">
+                ▶ 繼續上次抓取
+              </button>
+            )}
+            {resumable.failedHandles.length > 0 && (
+              <button onClick={handleRetryFailed}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded font-bold">
+                🔁 只重試失敗的 {resumable.failedHandles.length} 筆
+              </button>
+            )}
             <button onClick={handleDiscardResume}
               className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded">
               放棄

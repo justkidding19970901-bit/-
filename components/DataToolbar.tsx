@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import type { Product } from '../types';
-import { EMPTY_PRODUCT } from '../types';
 import { ExcelImport } from './ExcelImport';
 import type { ImportMode } from '../lib/syncMerge';
+import { normalizeBackup } from '../lib/migration';
 
 interface Props {
   products: Product[];
@@ -36,20 +36,11 @@ export const DataToolbar: React.FC<Props> = ({ products, onReplace, onImportProd
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const incoming: Product[] = Array.isArray(parsed)
-        ? parsed
-        : Array.isArray(parsed?.products)
-          ? parsed.products
-          : [];
-      if (!incoming.length) {
+      const normalized = normalizeBackup(parsed);
+      if (!normalized.length) {
         alert('檔案內沒有商品資料');
         return;
       }
-      const normalized = incoming.map((p, i) => ({
-        ...EMPTY_PRODUCT,
-        ...p,
-        id: p.id || `imp_${Date.now()}_${i}`,
-      }));
       const replace = products.length === 0
         ? true
         : confirm(
