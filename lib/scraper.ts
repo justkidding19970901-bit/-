@@ -12,9 +12,106 @@ const PROXIES: ((url: string) => string)[] = [
 
 export interface ScrapeResult {
   partial: Partial<Omit<Product, 'id'>>;
-  source: 'json-ld' | 'open-graph' | 'fallback';
+  source: 'shopify-json' | 'json-ld' | 'open-graph' | 'fallback';
   sourceUrl: string;
   warnings: string[];
+}
+
+interface ShopifyProductJson {
+  product: {
+    id: number;
+    title: string;
+    body_html: string;
+    vendor: string;
+    product_type: string;
+    handle: string;
+    tags: string[] | string;
+    variants: Array<{
+      id: number;
+      title: string;
+      price: string;
+      compare_at_price: string | null;
+      sku: string;
+      inventory_quantity?: number;
+      option1?: string | null;
+      option2?: string | null;
+      option3?: string | null;
+      available?: boolean;
+    }>;
+    options: Array<{ name: string; values: string[] }>;
+    images: Array<{ src: string }>;
+  };
+}
+
+function detectShopifyJsonEndpoint(url: string): string | null {
+  const m = url.match(/^(https?:\/\/[^/]+)(?:\/collections\/[^/]+)?\/products\/([^/?#]+)/i);
+  if (!m) return null;
+  return `${m[1]}/products/${m[2]}.json`;
+}
+
+async function fetchJSONViaProxies<T>(targetUrl: string): Promise<T | null> {
+  for (const buildUrl of PROXIES) {
+    try {
+      const res = await fetch(buildUrl(targetUrl), {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) continue;
+      const text = await res.text();
+      const parsed = JSON.parse(text) as T;
+      if (parsed) return parsed;
+    } catch {
+      /* try next proxy */
+    }
+  }
+  return null;
+}
+
+async function tryShopifyJson(url: string): Promise<ScrapeResult | null> {
+  const endpoint = detectShopifyJsonEndpoint(url);
+  if (!endpoint) return null;
+  const data = await fetchJSONViaProxies<ShopifyProductJson>(endpoint);
+  if (!data?.product?.title) return null;
+
+  const p = data.product;
+  const v0 = p.variants?.[0];
+  const totalStock = (p.variants ?? []).reduce(
+    (acc, v) => acc + (typeof v.inventory_quantity === 'number' ? v.inventory_quantity : 0),
+    0,
+  );
+
+  const specs: ProductSpec[] = (p.options ?? [])
+    .filter(o => o.name && o.name.toLowerCase() !== 'title')
+    .map(o => ({ name: o.name, value: (o.values ?? []).join(' / ') }));
+
+  const tags = Array.isArray(p.tags) ? p.tags.join(', ') : (p.tags ?? '');
+  const images = (p.images ?? []).map(i => i.src).filter(Boolean).slice(0, 10);
+
+  const warnings: string[] = [];
+  const price = v0 ? Number(v0.price) || 0 : 0;
+  if (!price) warnings.push('未抓到價格，請手動填寫');
+  if (!images.length) warnings.push('未抓到圖片');
+  if ((p.variants ?? []).length > 1) {
+    warnings.push(
+      `此商品有 ${p.variants.length} 個變體（不同款式 / 顏色），目前只取第一個變體的價格與 SKU；庫存為全部變體加總`,
+    );
+  }
+
+  const partial: Partial<Omit<Product, 'id'>> = {
+    name: p.title,
+    description: stripHtml(p.body_html ?? ''),
+    price,
+    originalPrice: v0?.compare_at_price ? Number(v0.compare_at_price) || undefined : undefined,
+    stock: totalStock,
+    model: v0?.sku ?? '',
+    brand: p.vendor ?? '',
+    category: p.product_type ?? '',
+    specs,
+    imageUrls: images,
+    videoUrl: '',
+    tags,
+  };
+
+  return { partial, source: 'shopify-json', sourceUrl: url, warnings };
 }
 
 async function fetchHTML(targetUrl: string): Promise<string> {
@@ -228,6 +325,13 @@ export async function scrapeProduct(rawUrl: string): Promise<ScrapeResult> {
   if (!/^https?:\/\//i.test(url)) {
     throw new Error('請輸入完整網址（包含 http:// 或 https://）');
   }
+
+  // Fast path: Shopify exposes /products/<handle>.json publicly with the
+  // full product record (variants, options, images). Way more reliable
+  // than HTML parsing.
+  const shopifyResult = await tryShopifyJson(url).catch(() => null);
+  if (shopifyResult) return shopifyResult;
+
   const html = await fetchHTML(url);
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const warnings: string[] = [];

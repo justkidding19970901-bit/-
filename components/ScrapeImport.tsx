@@ -7,6 +7,7 @@ interface Props {
 }
 
 const SOURCE_LABEL: Record<ScrapeResult['source'], string> = {
+  'shopify-json': 'Shopify 官方商品 JSON（最完整）',
   'json-ld': '結構化資料 (JSON-LD)',
   'open-graph': 'Open Graph 標籤',
   'fallback': '一般 HTML（資料可能不完整）',
