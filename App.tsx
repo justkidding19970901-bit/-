@@ -7,6 +7,7 @@ import { ScrapeImport } from './components/ScrapeImport';
 import { CollectionScrape } from './components/CollectionScrape';
 import { DataToolbar } from './components/DataToolbar';
 import { BulkActions } from './components/BulkActions';
+import { mergeProducts, type ImportMode, type MergeReport } from './lib/syncMerge';
 
 const STORAGE_KEY = 'product_migration_v1';
 
@@ -21,6 +22,19 @@ const App: React.FC = () => {
   });
   const [editing, setEditing] = useState<Product | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [syncMode, setSyncMode] = useState<boolean>(true);
+  const [lastReport, setLastReport] = useState<MergeReport | null>(null);
+
+  const importProducts = (incoming: Product[], mode: ImportMode) => {
+    if (!incoming.length) return;
+    setProducts(prev => {
+      const { next, report } = mergeProducts(prev, incoming, mode);
+      setLastReport(report);
+      return next;
+    });
+    // Auto-clear the toast after 6 seconds
+    setTimeout(() => setLastReport(null), 6000);
+  };
 
   useEffect(() => {
     try {
@@ -81,7 +95,7 @@ const App: React.FC = () => {
 
   const handleSaveMany = (newOnes: Product[]) => {
     if (!newOnes.length) return;
-    setProducts(prev => [...prev, ...newOnes]);
+    importProducts(newOnes, syncMode ? 'sync' : 'append');
   };
 
   const handleDelete = (id: string) => {
@@ -136,10 +150,24 @@ const App: React.FC = () => {
               清空全部
             </button>
           </div>
-          <DataToolbar products={products} onReplace={setProducts} />
+          <DataToolbar products={products} onReplace={setProducts} onImportProducts={importProducts} />
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={syncMode}
+                onChange={e => setSyncMode(e.target.checked)} />
+              <span className="font-medium">SKU 增量同步</span>
+              <span className="text-slate-400">— 抓取重複商品時自動更新而非新增</span>
+            </label>
+          </div>
           {storageWarn && (
             <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
               ⚠️ 已超過 200 件商品，瀏覽器儲存空間可能不足。建議「下載備份檔」並考慮分批處理。
+            </div>
+          )}
+          {lastReport && (
+            <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-1"
+                 role="status" aria-live="polite">
+              ✓ 匯入 {lastReport.total} 筆 — 新增 {lastReport.added}、更新 {lastReport.updated}、未變更 {lastReport.unchanged}
             </div>
           )}
         </div>

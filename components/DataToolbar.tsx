@@ -1,13 +1,16 @@
 import React, { useRef } from 'react';
 import type { Product } from '../types';
 import { EMPTY_PRODUCT } from '../types';
+import { ExcelImport } from './ExcelImport';
+import type { ImportMode } from '../lib/syncMerge';
 
 interface Props {
   products: Product[];
   onReplace: (next: Product[]) => void;
+  onImportProducts: (products: Product[], mode: ImportMode) => void;
 }
 
-export const DataToolbar: React.FC<Props> = ({ products, onReplace }) => {
+export const DataToolbar: React.FC<Props> = ({ products, onReplace, onImportProducts }) => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const downloadBackup = () => {
@@ -83,8 +86,9 @@ export const DataToolbar: React.FC<Props> = ({ products, onReplace }) => {
         className="hidden"
         onChange={handleFile}
       />
-      <span className="text-slate-500 ml-1">
-        備份檔可在不同電腦或瀏覽器之間搬資料
+      <ExcelImport onImport={(rows, opts) => onImportProducts(rows, opts.mode)} />
+      <span className="text-slate-500 ml-1 hidden sm:inline">
+        備份檔 / Excel 都可在不同裝置間搬資料
       </span>
     </div>
   );

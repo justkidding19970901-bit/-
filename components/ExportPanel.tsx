@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Product, Platform } from '../types';
 import { buildCSV, downloadCSV, PLATFORM_META, validateForPlatform } from '../lib/csvExport';
+import { CsvPreview } from './CsvPreview';
 
 interface Props {
   products: Product[];
@@ -16,6 +17,12 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
   const disabled = products.length === 0;
   const platforms = Object.keys(PLATFORM_META) as Platform[];
   const [auditPlatform, setAuditPlatform] = useState<Platform | null>(null);
+  const [previewPlatform, setPreviewPlatform] = useState<Platform | null>(null);
+
+  const previewCsv = useMemo(
+    () => (previewPlatform ? buildCSV(previewPlatform, products) : ''),
+    [previewPlatform, products],
+  );
 
   const issues = useMemo(() => {
     if (!auditPlatform) return [];
@@ -58,16 +65,33 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
               </span>
             </button>
             <button
+              onClick={() => setPreviewPlatform(p)}
+              disabled={disabled}
+              title="預覽 CSV 內容"
+              aria-label={`預覽 ${PLATFORM_META[p].label} CSV`}
+              className="shrink-0 px-2 py-2 bg-white border border-slate-300 hover:bg-slate-100 disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700 text-xs rounded-md"
+            >
+              👁
+            </button>
+            <button
               onClick={() => setAuditPlatform(auditPlatform === p ? null : p)}
               disabled={disabled}
               title="檢查欄位是否齊全"
               className="shrink-0 px-2 py-2 bg-white border border-slate-300 hover:bg-slate-100 disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700 text-xs rounded-md"
             >
-              ✓ 檢查
+              ✓
             </button>
           </div>
         ))}
       </div>
+
+      {previewPlatform && (
+        <CsvPreview
+          platform={previewPlatform}
+          csv={previewCsv}
+          onClose={() => setPreviewPlatform(null)}
+        />
+      )}
 
       <button onClick={exportAll} disabled={disabled}
         className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-2 px-3 rounded-md text-sm transition">
