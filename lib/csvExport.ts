@@ -317,8 +317,44 @@ function commonIssues(p: Product): ProductIssue[] {
   return issues;
 }
 
+export function findDuplicateSkus(products: Product[]): Map<string, Product[]> {
+  const groups = new Map<string, Product[]>();
+  for (const p of products) {
+    const sku = (p.model || '').trim();
+    if (!sku) continue;
+    const list = groups.get(sku) ?? [];
+    list.push(p);
+    groups.set(sku, list);
+  }
+  return new Map(Array.from(groups.entries()).filter(([, v]) => v.length > 1));
+}
+
+export function autoFixDuplicateSkus(products: Product[]): Product[] {
+  const seen = new Map<string, number>();
+  return products.map(p => {
+    const original = (p.model || '').trim();
+    if (!original) return p;
+    const count = seen.get(original) ?? 0;
+    seen.set(original, count + 1);
+    if (count === 0) return p;
+    return { ...p, model: `${original}-${count + 1}` };
+  });
+}
+
 export function validateForPlatform(platform: Platform, products: Product[]): ProductIssue[] {
   const all: ProductIssue[] = [];
+  // Cross-product duplicate SKU check
+  const dupes = findDuplicateSkus(products);
+  for (const [sku, list] of dupes) {
+    for (const p of list) {
+      all.push({
+        productId: p.id,
+        productName: p.name || '(未命名商品)',
+        level: 'error',
+        message: `SKU 「${sku}」與其他 ${list.length - 1} 筆重複（會匯入失敗）`,
+      });
+    }
+  }
   for (const p of products) {
     const base = { productId: p.id, productName: p.name || '(未命名商品)' };
     all.push(...commonIssues(p));

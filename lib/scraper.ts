@@ -1,4 +1,5 @@
 import type { Product, ProductSpec } from '../types';
+import { sanitizeHtml } from './htmlSanitize';
 
 /**
  * Tries multiple public CORS proxies in order. Each call returns the raw HTML
@@ -9,6 +10,29 @@ const PROXIES: ((url: string) => string)[] = [
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
 ];
+
+/**
+ * Wrap an async operation with exponential-backoff retries. Each retry waits
+ * baseMs, baseMs*2, baseMs*4, ... up to maxAttempts.
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  baseMs = 600,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, baseMs * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
 
 export interface ScrapeResult {
   partial: Partial<Omit<Product, 'id'>>;
@@ -127,9 +151,10 @@ async function tryShopifyJson(url: string): Promise<ScrapeResult | null> {
     return 0;
   })();
 
+  const cleanDescription = sanitizeHtml(p.body_html ?? '');
   const partial: Partial<Omit<Product, 'id'>> = {
     name: p.title,
-    description: stripHtml(p.body_html ?? ''),
+    description: cleanDescription,
     price,
     originalPrice: v0?.compare_at_price ? Number(v0.compare_at_price) || undefined : undefined,
     stock: totalStock,

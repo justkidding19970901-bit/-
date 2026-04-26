@@ -6,6 +6,7 @@ import { ExportPanel } from './components/ExportPanel';
 import { ScrapeImport } from './components/ScrapeImport';
 import { CollectionScrape } from './components/CollectionScrape';
 import { DataToolbar } from './components/DataToolbar';
+import { BulkActions } from './components/BulkActions';
 
 const STORAGE_KEY = 'product_migration_v1';
 
@@ -19,14 +20,29 @@ const App: React.FC = () => {
     }
   });
   const [editing, setEditing] = useState<Product | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-    } catch {
-      /* quota exceeded — ignore */
+    } catch (e) {
+      // localStorage typically caps at ~5MB; warn the user once
+      console.warn('localStorage 存取失敗，可能已超過容量上限', e);
     }
   }, [products]);
+
+  // Drop selection ids that no longer point to existing products
+  useEffect(() => {
+    if (selectedIds.size === 0) return;
+    const existing = new Set(products.map(p => p.id));
+    let changed = false;
+    const next = new Set<string>();
+    for (const id of selectedIds) {
+      if (existing.has(id)) next.add(id);
+      else changed = true;
+    }
+    if (changed) setSelectedIds(next);
+  }, [products, selectedIds]);
 
   const handleSave = (p: Product) => {
     setProducts(prev => {
@@ -65,9 +81,12 @@ const App: React.FC = () => {
     if (products.length === 0) return;
     if (confirm(`確定清空全部 ${products.length} 件商品？此動作無法復原。建議先「下載備份檔」。`)) {
       setProducts([]);
+      setSelectedIds(new Set());
       setEditing(null);
     }
   };
+
+  const storageWarn = products.length > 200;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -88,6 +107,11 @@ const App: React.FC = () => {
             </button>
           </div>
           <DataToolbar products={products} onReplace={setProducts} />
+          {storageWarn && (
+            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              ⚠️ 已超過 200 件商品，瀏覽器儲存空間可能不足。建議「下載備份檔」並考慮分批處理。
+            </div>
+          )}
         </div>
       </header>
 
@@ -104,8 +128,14 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        <section className="lg:col-span-2 space-y-4 lg:sticky lg:top-[120px] lg:self-start">
+        <section className="lg:col-span-2 space-y-4 lg:sticky lg:top-[140px] lg:self-start">
           <ExportPanel products={products} />
+          <BulkActions
+            products={products}
+            selectedIds={selectedIds}
+            onUpdate={setProducts}
+            onClearSelection={() => setSelectedIds(new Set())}
+          />
           <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800 mb-3">商品清單</h2>
             <ProductList
@@ -113,6 +143,8 @@ const App: React.FC = () => {
               onEdit={setEditing}
               onDelete={handleDelete}
               onDuplicate={handleDuplicate}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
             />
           </div>
         </section>

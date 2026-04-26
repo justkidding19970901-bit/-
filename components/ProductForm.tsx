@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Product, ProductSpec } from '../types';
 import { EMPTY_PRODUCT } from '../types';
+import { sanitizeHtml } from '../lib/htmlSanitize';
 
 interface Props {
   editing: Product | null;
@@ -117,7 +118,14 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel }) => {
       </div>
 
       <div>
-        <label className={labelCls}>商品描述 / 內文</label>
+        <div className="flex items-baseline justify-between">
+          <label className={labelCls}>商品描述 / 內文</label>
+          <button type="button"
+            onClick={() => update('description', sanitizeHtml(form.description))}
+            className="text-[11px] text-amber-700 hover:text-amber-900 underline">
+            清理 HTML（移除危險標籤 / 內嵌樣式）
+          </button>
+        </div>
         <textarea className={inputCls + ' min-h-[120px]'} value={form.description}
           onChange={e => update('description', e.target.value)} />
       </div>
