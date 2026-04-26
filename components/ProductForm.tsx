@@ -239,11 +239,23 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel }) => {
               onChange={e => update('yahooCategoryCode', e.target.value)}
               placeholder="從 Yahoo 後台分類表取得" />
           </div>
-          <div className="md:col-span-2">
+          <div>
             <label className={labelCls}>Pinkoi 分類</label>
             <input className={inputCls} value={form.pinkoiCategory ?? ''}
               onChange={e => update('pinkoiCategory', e.target.value)}
               placeholder="例：飾品配件 > 手機殼" />
+          </div>
+          <div>
+            <label className={labelCls}>Shopee 分類碼</label>
+            <input className={inputCls} value={form.shopeeCategoryCode ?? ''}
+              onChange={e => update('shopeeCategoryCode', e.target.value)}
+              placeholder="從 Shopee 賣家中心取得" />
+          </div>
+          <div>
+            <label className={labelCls}>Ruten 分類碼</label>
+            <input className={inputCls} value={form.rutenCategoryCode ?? ''}
+              onChange={e => update('rutenCategoryCode', e.target.value)}
+              placeholder="從露天賣家中心取得" />
           </div>
         </div>
       </details>

@@ -19,6 +19,8 @@ export interface Product {
   momoCategoryCode?: string;
   yahooCategoryCode?: string;
   pinkoiCategory?: string;
+  shopeeCategoryCode?: string;
+  rutenCategoryCode?: string;
   specs: ProductSpec[];
   imageUrls: string[];
   videoUrl: string;
@@ -30,7 +32,7 @@ export interface Product {
   shippingDays: number;
 }
 
-export type Platform = 'momo' | 'yahoo' | 'pinkoi';
+export type Platform = 'pinkoi' | 'shopee' | 'ruten' | 'yahoo' | 'momo';
 
 export const EMPTY_PRODUCT: Omit<Product, 'id'> = {
   name: '',
@@ -45,6 +47,8 @@ export const EMPTY_PRODUCT: Omit<Product, 'id'> = {
   momoCategoryCode: '',
   yahooCategoryCode: '',
   pinkoiCategory: '',
+  shopeeCategoryCode: '',
+  rutenCategoryCode: '',
   specs: [],
   imageUrls: [],
   videoUrl: '',

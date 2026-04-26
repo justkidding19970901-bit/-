@@ -12,6 +12,13 @@ const PROXIES: ((url: string) => string)[] = [
 
 export interface ScrapeResult {
   partial: Partial<Omit<Product, 'id'>>;
+  /**
+   * When the source is `shopify-json` and the product has multiple variants,
+   * this contains one expanded record per variant (variant-specific name /
+   * sku / price / stock + variant options merged into specs). The caller
+   * decides whether to import `partial` (single) or `variants` (one per row).
+   */
+  variants?: Array<Partial<Omit<Product, 'id'>>>;
   source: 'shopify-json' | 'json-ld' | 'open-graph' | 'fallback';
   sourceUrl: string;
   warnings: string[];
@@ -93,25 +100,29 @@ async function tryShopifyJson(url: string): Promise<ScrapeResult | null> {
   const price = v0 ? Number(v0.price) || 0 : 0;
   if (!price) warnings.push('未抓到價格，請手動填寫');
   if (!images.length) warnings.push('未抓到圖片');
-  if ((p.variants ?? []).length > 1) {
+  const variantCount = (p.variants ?? []).length;
+  if (variantCount > 1) {
     warnings.push(
-      `此商品有 ${p.variants.length} 個變體（不同款式 / 顏色），目前只取第一個變體的價格與 SKU；庫存為全部變體加總`,
+      `此商品有 ${variantCount} 個變體 — 預覽下方有「展開全部變體」按鈕，可一次匯入 ${variantCount} 筆獨立商品`,
     );
   }
 
-  // Shopify variants store weight in `grams` (or `weight` + `weight_unit`).
-  // Pick the first variant that reports a non-zero weight.
+  const variantWeightG = (v: ShopifyProductJson['product']['variants'][number]) => {
+    if (typeof v.grams === 'number' && v.grams > 0) return v.grams;
+    if (typeof v.weight === 'number' && v.weight > 0) {
+      const unit = (v.weight_unit ?? '').toLowerCase();
+      if (unit === 'g') return v.weight;
+      if (unit === 'kg') return v.weight * 1000;
+      if (unit === 'oz') return Math.round(v.weight * 28.3495);
+      if (unit === 'lb') return Math.round(v.weight * 453.592);
+      return v.weight;
+    }
+    return 0;
+  };
   const weightG = (() => {
     for (const v of p.variants ?? []) {
-      if (typeof v.grams === 'number' && v.grams > 0) return v.grams;
-      if (typeof v.weight === 'number' && v.weight > 0) {
-        const unit = (v.weight_unit ?? '').toLowerCase();
-        if (unit === 'g') return v.weight;
-        if (unit === 'kg') return v.weight * 1000;
-        if (unit === 'oz') return Math.round(v.weight * 28.3495);
-        if (unit === 'lb') return Math.round(v.weight * 453.592);
-        return v.weight;
-      }
+      const w = variantWeightG(v);
+      if (w > 0) return w;
     }
     return 0;
   })();
@@ -135,7 +146,83 @@ async function tryShopifyJson(url: string): Promise<ScrapeResult | null> {
     shippingDays: 3,
   };
 
-  return { partial, source: 'shopify-json', sourceUrl: url, warnings };
+  // Build one Product-shaped partial per variant so the user can fan a
+  // multi-option Shopify product out to independent SKUs at import time.
+  const optionNames = (p.options ?? []).map(o => o.name).filter(Boolean);
+  const variants: Array<Partial<Omit<Product, 'id'>>> | undefined =
+    variantCount > 1
+      ? p.variants.map(v => {
+          const optionValues = [v.option1, v.option2, v.option3].filter(Boolean) as string[];
+          const variantSpecs: ProductSpec[] = optionNames.map((n, i) => ({
+            name: n,
+            value: optionValues[i] ?? '',
+          })).filter(s => s.value);
+          const variantTitle = optionValues.join(' / ');
+          return {
+            ...partial,
+            name: variantTitle ? `${p.title} - ${variantTitle}` : p.title,
+            price: Number(v.price) || price,
+            originalPrice: v.compare_at_price ? Number(v.compare_at_price) || undefined : undefined,
+            stock: typeof v.inventory_quantity === 'number' ? v.inventory_quantity : 0,
+            model: v.sku || `${p.handle}-${v.id}`,
+            specs: variantSpecs,
+            weightG: variantWeightG(v) || weightG,
+          };
+        })
+      : undefined;
+
+  return { partial, variants, source: 'shopify-json', sourceUrl: url, warnings };
+}
+
+// =============================================================================
+// Whole-collection scraping for Shopify
+// =============================================================================
+
+export interface CollectionScanResult {
+  collectionUrl: string;
+  productHandles: string[];
+  origin: string;
+}
+
+interface ShopifyCollectionProductsJson {
+  products: Array<{ handle: string }>;
+}
+
+function detectShopifyCollectionEndpoint(url: string): { origin: string; collection: string } | null {
+  const m = url.match(/^(https?:\/\/[^/]+)\/collections\/([^/?#]+)\/?(?:\?|#|$)/i);
+  if (!m) return null;
+  return { origin: m[1], collection: m[2] };
+}
+
+/**
+ * Walks /collections/<handle>/products.json with paging until empty.
+ * Returns every product handle so the caller can iterate scrapeProduct.
+ */
+export async function scanShopifyCollection(rawUrl: string): Promise<CollectionScanResult> {
+  const url = rawUrl.trim();
+  const detected = detectShopifyCollectionEndpoint(url);
+  if (!detected) {
+    throw new Error('這不是 Shopify 分類頁網址（應為 /collections/xxx）');
+  }
+  const handles: string[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const endpoint = `${detected.origin}/collections/${detected.collection}/products.json?limit=250&page=${page}`;
+    const data = await fetchJSONViaProxies<ShopifyCollectionProductsJson>(endpoint);
+    const items = data?.products ?? [];
+    if (!items.length) break;
+    for (const it of items) {
+      if (it.handle) handles.push(it.handle);
+    }
+    if (items.length < 250) break;
+  }
+  if (!handles.length) {
+    throw new Error('沒抓到任何商品（分類可能是空的，或代理被擋）');
+  }
+  return { collectionUrl: url, productHandles: handles, origin: detected.origin };
+}
+
+export function buildProductUrlFromHandle(origin: string, handle: string): string {
+  return `${origin}/products/${handle}`;
 }
 
 async function fetchHTML(targetUrl: string): Promise<string> {

@@ -5,6 +5,7 @@ import { scrapeProduct, type ScrapeResult } from '../lib/scraper';
 
 interface Props {
   onImport: (p: Product) => void;
+  onImportMany: (ps: Product[]) => void;
 }
 
 const SOURCE_LABEL: Record<ScrapeResult['source'], string> = {
@@ -14,7 +15,15 @@ const SOURCE_LABEL: Record<ScrapeResult['source'], string> = {
   'fallback': '一般 HTML（資料可能不完整）',
 };
 
-export const ScrapeImport: React.FC<Props> = ({ onImport }) => {
+function makeProduct(partial: Partial<Omit<Product, 'id'>>): Product {
+  return {
+    ...EMPTY_PRODUCT,
+    ...partial,
+    id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  };
+}
+
+export const ScrapeImport: React.FC<Props> = ({ onImport, onImportMany }) => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,12 +46,20 @@ export const ScrapeImport: React.FC<Props> = ({ onImport }) => {
 
   const handleImport = () => {
     if (!result) return;
-    const product: Product = {
+    onImport(makeProduct(result.partial));
+    setResult(null);
+    setUrl('');
+  };
+
+  const handleImportAllVariants = () => {
+    if (!result?.variants?.length) return;
+    // Stagger ids so list ordering stays stable
+    const products = result.variants.map((v, i) => ({
       ...EMPTY_PRODUCT,
-      ...result.partial,
-      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    };
-    onImport(product);
+      ...v,
+      id: `p_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
+    }));
+    onImportMany(products);
     setResult(null);
     setUrl('');
   };
@@ -133,12 +150,28 @@ export const ScrapeImport: React.FC<Props> = ({ onImport }) => {
             </div>
           )}
 
-          <button
-            onClick={handleImport}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-md text-sm"
-          >
-            ✓ 匯入到商品清單
-          </button>
+          <div className="flex flex-col gap-2">
+            {result.variants && result.variants.length > 1 && (
+              <button
+                onClick={handleImportAllVariants}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-md text-sm"
+              >
+                🪄 展開全部 {result.variants.length} 個變體 → 匯入 {result.variants.length} 筆商品
+              </button>
+            )}
+            <button
+              onClick={handleImport}
+              className={`w-full font-bold py-2 rounded-md text-sm ${
+                result.variants && result.variants.length > 1
+                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
+            >
+              {result.variants && result.variants.length > 1
+                ? '只匯入一筆（合併所有變體）'
+                : '✓ 匯入到商品清單'}
+            </button>
+          </div>
         </div>
       )}
     </div>
