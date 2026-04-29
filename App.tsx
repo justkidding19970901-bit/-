@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Product } from './types';
 import { ProductForm } from './components/ProductForm';
 import { ProductList } from './components/ProductList';
@@ -10,8 +10,9 @@ import { BulkActions } from './components/BulkActions';
 import { mergeProducts, previewMerge, type ImportMode, type MergeReport, type DiffEntry } from './lib/syncMerge';
 import { loadProducts, saveProducts, type SaveResult } from './lib/migration';
 import { DiffPreview } from './components/DiffPreview';
-import { DialogHost, showConfirm } from './lib/dialog';
+import { DialogHost, showAlert, showConfirm } from './lib/dialog';
 import { makeId } from './lib/id';
+import { readExcelFile, rowsToProducts } from './lib/excelImport';
 
 const STORAGE_KEY = 'product_migration_v1';
 
@@ -85,6 +86,52 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [products]);
+
+  // EasyStore userscript pushes CSV to /__sync. Subscribe to dev-server SSE
+  // notifications and auto-pipe the CSV through the same import flow as a
+  // manual upload (so DiffPreview / sync-mode toggle still apply).
+  const handleSyncRef = useRef<(csv: string) => Promise<void>>(async () => {});
+  handleSyncRef.current = async (csv: string) => {
+    try {
+      const file = new File([csv], 'easystore-sync.csv', { type: 'text/csv' });
+      const rows = await readExcelFile(file);
+      const result = rowsToProducts(rows);
+      if (!result.rows.length) {
+        await showAlert({ title: '同步收到的 CSV 沒有可匯入的資料' });
+        return;
+      }
+      importProducts(result.rows, syncMode ? 'sync' : 'append');
+    } catch (err) {
+      await showAlert({
+        title: '同步失敗',
+        body: (err as Error).message,
+      });
+    }
+  };
+
+  useEffect(() => {
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource('/__sync/events');
+      es.onmessage = async () => {
+        try {
+          const r = await fetch('/__sync');
+          if (!r.ok) return;
+          const csv = await r.text();
+          handleSyncRef.current(csv);
+        } catch {
+          /* dev server gone away — ignore */
+        }
+      };
+      es.onerror = () => {
+        // SSE auto-reconnects; if the dev server isn't running, this just
+        // keeps retrying silently — no need to surface to the user.
+      };
+    } catch {
+      /* EventSource unsupported — ignore */
+    }
+    return () => es?.close();
+  }, []);
 
   // Drop selection ids that no longer point to existing products
   useEffect(() => {
