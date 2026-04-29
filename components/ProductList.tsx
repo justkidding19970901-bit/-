@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Product } from '../types';
 import { findDuplicateSkus } from '../lib/csvExport';
+import { showConfirm } from '../lib/dialog';
 
 interface Props {
   products: Product[];
@@ -144,8 +145,13 @@ export const ProductList: React.FC<Props> = ({
                     className="px-2 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded">
                     複製
                   </button>
-                  <button onClick={() => {
-                    if (confirm(`確定刪除「${p.name}」？`)) onDelete(p.id);
+                  <button onClick={async () => {
+                    const ok = await showConfirm({
+                      title: `刪除「${p.name}」？`,
+                      confirmText: '刪除',
+                      destructive: true,
+                    });
+                    if (ok) onDelete(p.id);
                   }}
                     className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded">
                     刪除

@@ -77,9 +77,21 @@ export const ExcelImport: React.FC<Props> = ({ onImport }) => {
           <div className="bg-white rounded-lg shadow-xl max-w-4xl max-h-[90vh] w-full flex flex-col"
                onClick={e => e.stopPropagation()}>
             <header className="px-4 py-3 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-800">📊 匯入預覽</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-bold text-slate-800">📊 匯入預覽</h2>
+                {result.format === 'easystore' && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    ✓ 偵測到 EasyStore 匯出檔
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 辨識到 {result.rows.length} 筆有效商品（總列數 {result.totalSourceRows}）
+                {result.format === 'easystore' && (
+                  <span className="ml-1 text-emerald-700">
+                    · 變體已展開、12 張圖已合併、HTML 已清理、3 倉庫存已加總
+                  </span>
+                )}
               </p>
             </header>
 

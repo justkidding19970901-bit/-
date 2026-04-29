@@ -8,8 +8,10 @@ import { CollectionScrape } from './components/CollectionScrape';
 import { DataToolbar } from './components/DataToolbar';
 import { BulkActions } from './components/BulkActions';
 import { mergeProducts, previewMerge, type ImportMode, type MergeReport, type DiffEntry } from './lib/syncMerge';
-import { loadProducts, saveProducts } from './lib/migration';
+import { loadProducts, saveProducts, type SaveResult } from './lib/migration';
 import { DiffPreview } from './components/DiffPreview';
+import { DialogHost, showConfirm } from './lib/dialog';
+import { makeId } from './lib/id';
 
 const STORAGE_KEY = 'product_migration_v1';
 
@@ -21,6 +23,7 @@ const App: React.FC = () => {
   const [diffPreviewMode, setDiffPreviewMode] = useState<boolean>(true);
   const [lastReport, setLastReport] = useState<MergeReport | null>(null);
   const [pendingImport, setPendingImport] = useState<{ incoming: Product[]; mode: ImportMode; diffs: DiffEntry[] } | null>(null);
+  const [saveError, setSaveError] = useState<Extract<SaveResult, { ok: false }> | null>(null);
 
   const applyImport = (incoming: Product[], mode: ImportMode) => {
     setProducts(prev => {
@@ -40,7 +43,9 @@ const App: React.FC = () => {
       return;
     }
     const diffs = previewMerge(products, incoming, mode);
-    const hasMeaningful = diffs.some(d => d.kind === 'update' || d.kind === 'replace');
+    const hasMeaningful = diffs.some(
+      d => d.kind === 'update' || d.kind === 'replace' || d.kind === 'remove',
+    );
     if (!hasMeaningful) {
       applyImport(incoming, mode);
       return;
@@ -55,7 +60,8 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    saveProducts(STORAGE_KEY, products);
+    const result = saveProducts(STORAGE_KEY, products);
+    setSaveError(result.ok ? null : result);
   }, [products]);
 
   // Global keyboard shortcut: Cmd/Ctrl+S downloads a backup
@@ -119,7 +125,7 @@ const App: React.FC = () => {
   const handleDuplicate = (p: Product) => {
     const copy: Product = {
       ...p,
-      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      id: makeId('p'),
       name: `${p.name} (複本)`,
       model: p.model ? `${p.model}-COPY` : '',
     };
@@ -134,9 +140,15 @@ const App: React.FC = () => {
     setEditing(null);
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (products.length === 0) return;
-    if (confirm(`確定清空全部 ${products.length} 件商品？此動作無法復原。建議先「下載備份檔」。`)) {
+    const ok = await showConfirm({
+      title: `清空全部 ${products.length} 件商品？`,
+      body: '此動作無法復原。建議先下載備份檔再執行。',
+      confirmText: '清空',
+      destructive: true,
+    });
+    if (ok) {
       setProducts([]);
       setSelectedIds(new Set());
       setEditing(null);
@@ -178,6 +190,35 @@ const App: React.FC = () => {
               <span className="text-slate-400">— 看清楚會改哪幾筆再套用</span>
             </label>
           </div>
+          {saveError && (
+            <div className="text-xs bg-rose-50 border border-rose-300 rounded px-3 py-2 flex flex-wrap items-center justify-between gap-2"
+                 role="alert" aria-live="assertive">
+              <div className="flex-1 min-w-0 text-rose-900 leading-relaxed">
+                <span className="font-bold">⚠️ 資料尚未存進瀏覽器</span>
+                <span className="ml-1">
+                  {saveError.reason === 'quota'
+                    ? '— 儲存空間已滿，目前資料只在記憶體中；重新整理會遺失。請先下載備份檔，再考慮刪除舊資料或分批處理。'
+                    : `— 儲存失敗（${saveError.message}）。請立即下載備份檔以免遺失。`}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  const payload = { version: 1, exportedAt: new Date().toISOString(), products };
+                  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+                  a.download = `products-backup-${ts}.json`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(a.href);
+                }}
+                className="shrink-0 px-3 py-1 bg-rose-700 hover:bg-rose-600 text-white rounded font-bold">
+                💾 立刻下載備份
+              </button>
+            </div>
+          )}
           {storageWarn && (
             <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
               ⚠️ 已超過 200 件商品，瀏覽器儲存空間可能不足。建議「下載備份檔」並考慮分批處理。
@@ -195,7 +236,10 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
         <section className="lg:col-span-3 space-y-4">
           <CollectionScrape onImportMany={handleSaveMany} />
-          <ScrapeImport onImport={handleSave} onImportMany={handleSaveMany} />
+          <ScrapeImport
+            onImport={p => handleSaveMany([p])}
+            onImportMany={handleSaveMany}
+          />
           <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-sm">
             <ProductForm
               editing={editing}
@@ -239,6 +283,7 @@ const App: React.FC = () => {
           onCancel={() => setPendingImport(null)}
         />
       )}
+      <DialogHost />
     </div>
   );
 };

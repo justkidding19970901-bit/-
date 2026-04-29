@@ -3,6 +3,7 @@ import type { Product } from '../types';
 import { ExcelImport } from './ExcelImport';
 import type { ImportMode } from '../lib/syncMerge';
 import { normalizeBackup } from '../lib/migration';
+import { showAlert, showChoice } from '../lib/dialog';
 
 interface Props {
   products: Product[];
@@ -38,18 +39,25 @@ export const DataToolbar: React.FC<Props> = ({ products, onReplace, onImportProd
       const parsed = JSON.parse(text);
       const normalized = normalizeBackup(parsed);
       if (!normalized.length) {
-        alert('檔案內沒有商品資料');
+        await showAlert({ title: '檔案內沒有商品資料' });
         return;
       }
-      const replace = products.length === 0
-        ? true
-        : confirm(
-            `目前清單有 ${products.length} 筆商品，匯入 ${normalized.length} 筆：\n` +
-            `OK = 取代全部 / Cancel = 合併追加`,
-          );
-      onReplace(replace ? normalized : [...products, ...normalized]);
+      if (products.length === 0) {
+        onReplace(normalized);
+        return;
+      }
+      const choice = await showChoice<'replace' | 'append'>({
+        title: '匯入備份檔',
+        body: `目前有 ${products.length} 筆商品，備份檔內含 ${normalized.length} 筆。要怎麼處理？`,
+        actions: [
+          { label: '合併追加', value: 'append', variant: 'primary' },
+          { label: '取代全部', value: 'replace', variant: 'destructive' },
+        ],
+      });
+      if (choice === 'replace') onReplace(normalized);
+      else if (choice === 'append') onReplace([...products, ...normalized]);
     } catch (err) {
-      alert(`匯入失敗：${(err as Error).message}`);
+      await showAlert({ title: '匯入失敗', body: (err as Error).message });
     } finally {
       e.target.value = '';
     }

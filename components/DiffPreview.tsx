@@ -26,6 +26,7 @@ const FIELD_LABEL: Record<string, string> = {
 export const DiffPreview: React.FC<Props> = ({ diffs, onConfirm, onCancel }) => {
   const news = diffs.filter(d => d.kind === 'new' || d.kind === 'replace').length;
   const updates = diffs.filter(d => d.kind === 'update').length;
+  const removes = diffs.filter(d => d.kind === 'remove').length;
   const unchanged = diffs.filter(d => d.kind === 'unchanged').length;
 
   return (
@@ -38,8 +39,14 @@ export const DiffPreview: React.FC<Props> = ({ diffs, onConfirm, onCancel }) => 
           <h2 className="text-lg font-bold text-slate-800">🔍 同步差異預覽</h2>
           <p className="text-xs text-slate-600 mt-0.5">
             <span className="text-emerald-700 font-semibold">新增 {news}</span>　·
-            <span className="text-indigo-700 font-semibold">更新 {updates}</span>　·
-            <span className="text-slate-500">未變更 {unchanged}</span>
+            <span className="text-indigo-700 font-semibold">更新 {updates}</span>
+            {removes > 0 && (
+              <>
+                {'　·'}
+                <span className="text-rose-700 font-semibold">移除 {removes}</span>
+              </>
+            )}
+            　·<span className="text-slate-500">未變更 {unchanged}</span>
           </p>
         </header>
 
@@ -63,6 +70,19 @@ export const DiffPreview: React.FC<Props> = ({ diffs, onConfirm, onCancel }) => 
                     <div className="flex items-center gap-2">
                       <span className="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">取代</span>
                       <span className="font-semibold text-slate-800">{d.incoming.name}</span>
+                    </div>
+                  </li>
+                );
+              }
+              if (d.kind === 'remove') {
+                return (
+                  <li key={i} className="border border-rose-300 bg-rose-50 rounded p-2 text-sm">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="bg-rose-700 text-white text-[10px] font-bold px-2 py-0.5 rounded">− 移除</span>
+                      <span className="font-semibold text-slate-700 line-through">{d.existing.name}</span>
+                      <span className="text-xs text-slate-500">
+                        SKU: {d.existing.model || '(空)'} · ${d.existing.price} · 庫存 {d.existing.stock}
+                      </span>
                     </div>
                   </li>
                 );
@@ -110,7 +130,7 @@ export const DiffPreview: React.FC<Props> = ({ diffs, onConfirm, onCancel }) => 
           </button>
           <button onClick={onConfirm}
             className="px-4 py-1.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded">
-            ✓ 確認套用 ({news + updates} 筆變更)
+            ✓ 確認套用 ({news + updates + removes} 筆變更)
           </button>
         </footer>
       </div>

@@ -1,5 +1,7 @@
 import type { Product } from '../types';
 import { EMPTY_PRODUCT } from '../types';
+import { detectEasyStore, easyStoreToProducts } from './easyStoreAdapter';
+import { makeId } from './id';
 
 /**
  * Maps a raw header string from the user's spreadsheet to a Product field.
@@ -84,14 +86,24 @@ export interface ImportResult {
   rows: Product[];
   unmapped: string[];
   totalSourceRows: number;
+  format?: 'easystore' | 'generic';
 }
 
 /**
  * Convert an array of raw spreadsheet rows (first row = headers) to Product
- * objects. Returns the mapped rows, the headers we couldn't map (so the user
- * knows what's being ignored), and the original row count.
+ * objects. Routes to the EasyStore adapter when its signature columns are
+ * present, otherwise falls back to alias-based generic mapping.
  */
 export function rowsToProducts(rawRows: unknown[][]): ImportResult {
+  if (!rawRows.length) return { rows: [], unmapped: [], totalSourceRows: 0 };
+  const headers = (rawRows[0] ?? []).map(h => String(h ?? '').trim());
+  if (detectEasyStore(headers)) {
+    return easyStoreToProducts(rawRows);
+  }
+  return genericRowsToProducts(rawRows);
+}
+
+function genericRowsToProducts(rawRows: unknown[][]): ImportResult {
   if (!rawRows.length) return { rows: [], unmapped: [], totalSourceRows: 0 };
   const [headerRow, ...dataRows] = rawRows;
   const headers = (headerRow ?? []).map(h => String(h ?? '').trim());
@@ -101,14 +113,14 @@ export function rowsToProducts(rawRows: unknown[][]): ImportResult {
 
   const rows: Product[] = dataRows
     .filter(r => r && r.some(c => c !== null && c !== undefined && String(c).trim() !== ''))
-    .map((r, i) => {
+    .map(r => {
       const get = (field: keyof Omit<Product, 'id'>): unknown => {
         const idx = map.get(field);
         return idx !== undefined ? r[idx] : undefined;
       };
       return {
         ...EMPTY_PRODUCT,
-        id: `imp_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
+        id: makeId('imp'),
         name: String(get('name') ?? '').trim(),
         description: String(get('description') ?? '').trim(),
         price: asNumber(get('price')),
@@ -135,14 +147,25 @@ export function rowsToProducts(rawRows: unknown[][]): ImportResult {
       };
     });
 
-  return { rows, unmapped, totalSourceRows: dataRows.length };
+  return { rows, unmapped, totalSourceRows: dataRows.length, format: 'generic' };
 }
 
 /** Loads SheetJS only when the user actually picks a file. */
 export async function readExcelFile(file: File): Promise<unknown[][]> {
   const xlsx = await import('xlsx');
   const buf = await file.arrayBuffer();
-  const wb = xlsx.read(buf, { type: 'array' });
+  const lower = file.name.toLowerCase();
+  // For text formats (.csv/.tsv), SheetJS's encoding heuristic mis-detects
+  // UTF-8 as Latin-1 when the file lacks a BOM (EasyStore exports do not
+  // include one, mangling Chinese characters). Decode as UTF-8 ourselves and
+  // hand SheetJS a string instead.
+  let wb: ReturnType<typeof xlsx.read>;
+  if (lower.endsWith('.csv') || lower.endsWith('.tsv')) {
+    const text = new TextDecoder('utf-8').decode(buf);
+    wb = xlsx.read(text, { type: 'string' });
+  } else {
+    wb = xlsx.read(buf, { type: 'array' });
+  }
   const firstSheetName = wb.SheetNames[0];
   if (!firstSheetName) return [];
   const sheet = wb.Sheets[firstSheetName];

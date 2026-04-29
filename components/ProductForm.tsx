@@ -6,6 +6,8 @@ import {
   loadTemplates, addTemplate, removeTemplate, applyTemplate,
   type ProductTemplate,
 } from '../lib/templates';
+import { showAlert, showConfirm, showPrompt } from '../lib/dialog';
+import { makeId } from '../lib/id';
 
 interface Props {
   editing: Product | null;
@@ -51,8 +53,13 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel, onSpli
   const canSplit = variantPreview.combos.length > 1;
   const [templates, setTemplates] = useState<ProductTemplate[]>(() => loadTemplates());
 
-  const handleSaveAsTemplate = () => {
-    const name = prompt('範本名稱（之後可從上方下拉套用）');
+  const handleSaveAsTemplate = async () => {
+    const name = await showPrompt({
+      title: '存為範本',
+      body: '之後可從上方下拉選單套用到新商品。',
+      placeholder: '範本名稱',
+      confirmText: '儲存',
+    });
     if (!name?.trim()) return;
     const fullProduct: Product = { ...form, id: 'tmp' };
     addTemplate(name, fullProduct);
@@ -66,24 +73,32 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel, onSpli
     setForm(prev => ({ ...EMPTY_PRODUCT, ...applyTemplate(tpl, prev) } as Omit<Product, 'id'>));
   };
 
-  const handleDeleteTemplate = (id: string) => {
+  const handleDeleteTemplate = async (id: string) => {
     const tpl = templates.find(t => t.id === id);
     if (!tpl) return;
-    if (!confirm(`刪除範本「${tpl.name}」？`)) return;
+    const ok = await showConfirm({
+      title: `刪除範本「${tpl.name}」？`,
+      confirmText: '刪除',
+      destructive: true,
+    });
+    if (!ok) return;
     removeTemplate(id);
     setTemplates(loadTemplates());
   };
 
-  const handleSplitVariants = () => {
+  const handleSplitVariants = async () => {
     if (!canSplit) return;
     if (!form.name.trim()) {
-      alert('請先填寫商品名稱');
+      await showAlert({ title: '請先填寫商品名稱' });
       return;
     }
-    if (!confirm(`將拆出 ${variantPreview.combos.length} 筆獨立商品（每個變體一筆，可分別編輯價格 / 庫存 / SKU）。繼續？`)) {
-      return;
-    }
-    const variants: Product[] = variantPreview.combos.map((combo, idx) => {
+    const ok = await showConfirm({
+      title: `拆成 ${variantPreview.combos.length} 筆獨立商品？`,
+      body: '每個變體一筆，可分別編輯價格 / 庫存 / SKU。',
+      confirmText: '拆分',
+    });
+    if (!ok) return;
+    const variants: Product[] = variantPreview.combos.map(combo => {
       const variantSpecs: ProductSpec[] = variantPreview.axes.map((name, i) => ({
         name, value: combo[i],
       }));
@@ -92,7 +107,7 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel, onSpli
       return {
         ...EMPTY_PRODUCT,
         ...form,
-        id: `p_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+        id: makeId('p'),
         name: `${form.name} - ${suffix}`,
         model: `${baseModel}-${combo.map(v => v.replace(/\s+/g, '')).join('-')}`,
         specs: variantSpecs,
@@ -137,13 +152,13 @@ export const ProductForm: React.FC<Props> = ({ editing, onSave, onCancel, onSpli
     update('specs', form.specs.filter((_, idx) => idx !== i));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      alert('請填寫商品名稱');
+      await showAlert({ title: '請填寫商品名稱' });
       return;
     }
-    const id = editing?.id ?? `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const id = editing?.id ?? makeId('p');
     onSave({ ...form, id });
   };
 

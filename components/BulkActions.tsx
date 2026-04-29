@@ -4,6 +4,8 @@ import { autoFixDuplicateSkus, findDuplicateSkus } from '../lib/csvExport';
 import { sanitizeHtml } from '../lib/htmlSanitize';
 import { checkImageUrls, type ImageStatus } from '../lib/imageCheck';
 import { downloadProductImagesAsZip, type ZipProgress } from '../lib/imageZip';
+import { showAlert, showConfirm } from '../lib/dialog';
+import { makeId } from '../lib/id';
 
 interface Props {
   products: Product[];
@@ -70,8 +72,14 @@ export const BulkActions: React.FC<Props> = ({ products, selectedIds, onUpdate, 
     setCategoryValue('');
   };
 
-  const applyDelete = () => {
-    if (!confirm(`確定刪除選取的 ${targetCount} 筆商品？無法復原（建議先下載備份檔）`)) return;
+  const applyDelete = async () => {
+    const ok = await showConfirm({
+      title: `刪除選取的 ${targetCount} 筆商品？`,
+      body: '此動作無法復原。建議先下載備份檔再執行。',
+      confirmText: '刪除',
+      destructive: true,
+    });
+    if (!ok) return;
     onUpdate(products.filter(p => !targetIds.has(p.id)));
     onClearSelection();
   };
@@ -81,21 +89,24 @@ export const BulkActions: React.FC<Props> = ({ products, selectedIds, onUpdate, 
       .filter(p => targetIds.has(p.id))
       .map(p => ({
         ...p,
-        id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id: makeId('p'),
         name: `${p.name} (複本)`,
         model: p.model ? `${p.model}-COPY` : '',
       }));
     onUpdate([...products, ...clones]);
   };
 
-  const applyFixSkus = () => {
+  const applyFixSkus = async () => {
     const dupes = findDuplicateSkus(products);
     if (dupes.size === 0) {
-      alert('沒有重複的 SKU');
+      await showAlert({ title: '沒有重複的 SKU', body: '所有商品的型號都是唯一的。' });
       return;
     }
     onUpdate(autoFixDuplicateSkus(products));
-    alert(`已修復 ${dupes.size} 組重複 SKU（自動加上 -2、-3 後綴）`);
+    await showAlert({
+      title: `已修復 ${dupes.size} 組重複 SKU`,
+      body: '自動加上 -2、-3 後綴。',
+    });
   };
 
   const applySanitize = () => {
@@ -107,7 +118,7 @@ export const BulkActions: React.FC<Props> = ({ products, selectedIds, onUpdate, 
     const targetProducts = products.filter(p => targetIds.has(p.id));
     const total = targetProducts.reduce((acc, p) => acc + p.imageUrls.length, 0);
     if (!total) {
-      alert('沒有圖片可下載');
+      await showAlert({ title: '沒有圖片可下載', body: '選取的商品中沒有任何圖片網址。' });
       return;
     }
     setZipProgress({ done: 0, total, failed: 0, currentLabel: '準備…' });
@@ -115,7 +126,7 @@ export const BulkActions: React.FC<Props> = ({ products, selectedIds, onUpdate, 
       const r = await downloadProductImagesAsZip(targetProducts, p => setZipProgress(p));
       setZipResult({ success: r.success, failed: r.failed });
     } catch (err) {
-      alert(`打包失敗：${(err as Error).message}`);
+      await showAlert({ title: '打包失敗', body: (err as Error).message });
     } finally {
       setZipProgress(null);
     }

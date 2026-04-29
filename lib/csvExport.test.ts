@@ -106,9 +106,15 @@ describe('previewMerge', () => {
     expect(diffs.every(d => d.kind === 'new')).toBe(true);
   });
 
-  it('marks every row as replace in replace mode', () => {
-    const diffs = previewMerge([makeProduct({ id: 'a' })], [makeProduct({ id: 'b' })], 'replace');
-    expect(diffs.every(d => d.kind === 'replace')).toBe(true);
+  it('surfaces both sides in replace mode (existing as remove, incoming as replace)', () => {
+    const diffs = previewMerge(
+      [makeProduct({ id: 'a' }), makeProduct({ id: 'a2' })],
+      [makeProduct({ id: 'b' })],
+      'replace',
+    );
+    expect(diffs.length).toBe(3);
+    expect(diffs.filter(d => d.kind === 'remove').length).toBe(2);
+    expect(diffs.filter(d => d.kind === 'replace').length).toBe(1);
   });
 
   it('flags new SKUs as new in sync mode', () => {

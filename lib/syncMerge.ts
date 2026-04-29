@@ -19,7 +19,8 @@ export type DiffEntry =
   | { kind: 'new'; incoming: Product }
   | { kind: 'update'; before: Product; after: Product; changes: FieldChange[] }
   | { kind: 'unchanged'; existing: Product }
-  | { kind: 'replace'; incoming: Product };
+  | { kind: 'replace'; incoming: Product }
+  | { kind: 'remove'; existing: Product };
 
 const DIFF_FIELDS: (keyof Product)[] = [
   'name', 'description', 'price', 'originalPrice', 'cost', 'stock',
@@ -56,7 +57,13 @@ export function previewMerge(
   mode: ImportMode,
 ): DiffEntry[] {
   if (mode === 'replace') {
-    return incoming.map(p => ({ kind: 'replace' as const, incoming: p }));
+    // Surface BOTH sides so the user can see what's about to vanish, not just
+    // what's coming in. mergeProducts() still discards `existing` outright;
+    // these `remove` entries are preview-only.
+    return [
+      ...existing.map(p => ({ kind: 'remove' as const, existing: p })),
+      ...incoming.map(p => ({ kind: 'replace' as const, incoming: p })),
+    ];
   }
   if (mode === 'append') {
     return incoming.map(p => ({ kind: 'new' as const, incoming: p }));

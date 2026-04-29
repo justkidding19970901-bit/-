@@ -1,5 +1,6 @@
 import type { Product } from '../types';
 import { EMPTY_PRODUCT } from '../types';
+import { makeId } from './id';
 
 /**
  * Schema versioning for the products stored in localStorage.
@@ -24,22 +25,18 @@ interface VersionedSnapshot {
 }
 
 function applyDefaults(p: unknown): Product {
-  if (!p || typeof p !== 'object') return { ...EMPTY_PRODUCT, id: `mig_${Math.random()}` };
+  if (!p || typeof p !== 'object') return { ...EMPTY_PRODUCT, id: makeId('mig') };
   const obj = p as Partial<Product>;
-  return { ...EMPTY_PRODUCT, ...obj, id: obj.id ?? `mig_${Math.random()}` } as Product;
+  return { ...EMPTY_PRODUCT, ...obj, id: obj.id ?? makeId('mig') } as Product;
 }
 
-function migrate(version: number, products: unknown[]): Product[] {
+function migrate(_version: number, products: unknown[]): Product[] {
   let current: unknown[] = products;
 
-  // v1 → v2: introduced shopeeCategoryCode / rutenCategoryCode / weightG /
-  // condition / origin / warranty / shippingDays — defaults handled by spread.
-  if (version < 2) {
-    current = current.map(applyDefaults);
-  }
-
-  // Future:
-  // if (version < 3) { ...rename foo → bar... }
+  // No v1 → v2 transform needed: that bump only added optional fields, which
+  // the applyDefaults pass below already fills in via EMPTY_PRODUCT spread.
+  // Future per-version transforms:
+  //   if (version < 3) { current = current.map(...rename foo → bar...); }
 
   return current.map(applyDefaults);
 }
@@ -65,7 +62,11 @@ export function loadProducts(storageKey: string): Product[] {
   }
 }
 
-export function saveProducts(storageKey: string, products: Product[]): void {
+export type SaveResult =
+  | { ok: true }
+  | { ok: false; reason: 'quota' | 'unknown'; message: string };
+
+export function saveProducts(storageKey: string, products: Product[]): SaveResult {
   try {
     const snap: VersionedSnapshot = {
       version: SCHEMA_VERSION,
@@ -73,8 +74,17 @@ export function saveProducts(storageKey: string, products: Product[]): void {
       savedAt: new Date().toISOString(),
     };
     localStorage.setItem(storageKey, JSON.stringify(snap));
-  } catch {
-    /* quota / private mode — best effort */
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Quota name varies across browsers; check both modern names + legacy codes
+    const isQuota =
+      err instanceof DOMException &&
+      (err.name === 'QuotaExceededError' ||
+        err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        err.code === 22 ||
+        err.code === 1014);
+    return { ok: false, reason: isQuota ? 'quota' : 'unknown', message };
   }
 }
 

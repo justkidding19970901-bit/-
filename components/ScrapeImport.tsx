@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Product } from '../types';
 import { EMPTY_PRODUCT } from '../types';
 import { scrapeProduct, parsePastedJsonLd, type ScrapeResult } from '../lib/scraper';
+import { makeId } from '../lib/id';
 
 interface Props {
   onImport: (p: Product) => void;
@@ -19,7 +20,7 @@ function makeProduct(partial: Partial<Omit<Product, 'id'>>): Product {
   return {
     ...EMPTY_PRODUCT,
     ...partial,
-    id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    id: makeId('p'),
   };
 }
 
@@ -69,10 +70,10 @@ export const ScrapeImport: React.FC<Props> = ({ onImport, onImportMany }) => {
   const handleImportAllVariants = () => {
     if (!result?.variants?.length) return;
     // Stagger ids so list ordering stays stable
-    const products = result.variants.map((v, i) => ({
+    const products = result.variants.map(v => ({
       ...EMPTY_PRODUCT,
       ...v,
-      id: `p_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
+      id: makeId('p'),
     }));
     onImportMany(products);
     setResult(null);

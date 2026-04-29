@@ -1,4 +1,5 @@
 import type { Product } from '../types';
+import { makeId } from './id';
 
 const TEMPLATE_KEY = 'product_templates_v1';
 
@@ -37,7 +38,7 @@ export function addTemplate(name: string, source: Product): ProductTemplate {
   // strip per-product fields
   const { id: _id, name: _n, model: _m, price: _p, stock: _s, ...rest } = source;
   const tpl: ProductTemplate = {
-    id: `tpl_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+    id: makeId('tpl'),
     name: name.trim() || `範本 ${list.length + 1}`,
     payload: rest as TemplatePayload,
     createdAt: new Date().toISOString(),

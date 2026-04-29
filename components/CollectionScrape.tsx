@@ -3,6 +3,8 @@ import type { Product } from '../types';
 import { EMPTY_PRODUCT } from '../types';
 import { scanShopifyCollection, scrapeProduct, buildProductUrlFromHandle, withRetry } from '../lib/scraper';
 import { loadBatchProgress, saveBatchProgress, type BatchProgress } from '../lib/batchProgress';
+import { showConfirm } from '../lib/dialog';
+import { makeId } from '../lib/id';
 
 interface Props {
   onImportMany: (ps: Product[]) => void;
@@ -91,18 +93,18 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
           const productUrl = buildProductUrlFromHandle(initial.origin, handle);
           const r = await withRetry(() => scrapeProduct(productUrl), 3, 700);
           if (initial.expandVariants && r.variants && r.variants.length > 1) {
-            for (let v = 0; v < r.variants.length; v++) {
+            for (const variant of r.variants) {
               collected.push({
                 ...EMPTY_PRODUCT,
-                ...r.variants[v],
-                id: `p_${Date.now()}_${i}_${v}_${Math.random().toString(36).slice(2, 5)}`,
+                ...variant,
+                id: makeId('p'),
               });
             }
           } else {
             collected.push({
               ...EMPTY_PRODUCT,
               ...r.partial,
-              id: `p_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
+              id: makeId('p'),
             });
           }
         } catch {
@@ -215,8 +217,14 @@ export const CollectionScrape: React.FC<Props> = ({ onImportMany }) => {
     await runScrape(resumable);
   };
 
-  const handleDiscardResume = () => {
-    if (!confirm('放棄上次未完成的抓取？已抓的資料也會被丟掉。')) return;
+  const handleDiscardResume = async () => {
+    const ok = await showConfirm({
+      title: '放棄上次未完成的抓取？',
+      body: '已抓的資料也會被丟掉。',
+      confirmText: '放棄',
+      destructive: true,
+    });
+    if (!ok) return;
     saveBatchProgress(null);
     setResumable(null);
   };
