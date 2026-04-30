@@ -8,12 +8,20 @@
 
 const DB_NAME = 'product_migration';
 const STORE = 'kv';
-const DIMS_KEY = 'imageDims';
+// 升版到 v2 是因為 Pinkoi 圖片過濾從只看尺寸擴展到也看
+// 檔案大小(<10MB) + Content-Type(image/jpeg|png),需要重新掃描所有 URL。
+const DIMS_KEY = 'imageDims_v2';
 const SCAN_TIMEOUT_MS = 15000;
+const PINKOI_IMG_MIN_SIDE_PX = 1000;
+const PINKOI_IMG_MAX_BYTES = 10 * 1024 * 1024;
 
 export interface DimEntry {
   w: number;
   h: number;
+  /** HEAD response 的 Content-Length,bytes */
+  bytes?: number;
+  /** HEAD response 的 Content-Type,主要為了揪 Shopify CDN 內容協商偷塞 webp */
+  contentType?: string;
   /** 載入失敗(404、CORS、timeout 等)時的 timestamp;有值代表這張不可用 */
   failedAt?: number;
 }
@@ -69,21 +77,46 @@ export async function clearDimCache(): Promise<void> {
   await writeCacheToIDB(cached);
 }
 
-function probeImageDim(url: string): Promise<DimEntry> {
+function loadImageDim(url: string): Promise<{ w: number; h: number; failed?: boolean }> {
   return new Promise(resolve => {
     const img = new Image();
     let settled = false;
-    const finish = (entry: DimEntry) => {
+    const finish = (v: { w: number; h: number; failed?: boolean }) => {
       if (settled) return;
       settled = true;
       img.onload = img.onerror = null;
-      resolve(entry);
+      resolve(v);
     };
     img.onload = () => finish({ w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = () => finish({ w: 0, h: 0, failedAt: Date.now() });
-    setTimeout(() => finish({ w: 0, h: 0, failedAt: Date.now() }), SCAN_TIMEOUT_MS);
+    img.onerror = () => finish({ w: 0, h: 0, failed: true });
+    setTimeout(() => finish({ w: 0, h: 0, failed: true }), SCAN_TIMEOUT_MS);
     img.src = url;
   });
+}
+
+async function headProbe(url: string): Promise<{ bytes?: number; contentType?: string }> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SCAN_TIMEOUT_MS);
+    const res = await fetch(url, { method: 'HEAD', signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return {};
+    const len = res.headers.get('content-length');
+    const ct = res.headers.get('content-type') || undefined;
+    return {
+      bytes: len ? parseInt(len, 10) : undefined,
+      contentType: ct,
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function probeImageDim(url: string): Promise<DimEntry> {
+  // 並行跑 <img> load + HEAD,兩個結果合一
+  const [dim, head] = await Promise.all([loadImageDim(url), headProbe(url)]);
+  if (dim.failed) return { w: 0, h: 0, failedAt: Date.now() };
+  return { w: dim.w, h: dim.h, bytes: head.bytes, contentType: head.contentType };
 }
 
 export interface ScanProgress {
@@ -136,7 +169,22 @@ export async function scanImageDims(
   return cache;
 }
 
+/**
+ * Pinkoi 圖片過濾總規則:
+ *   ① URL 結尾 jpg/jpeg/png(由 pinkoiImageList 處理,這邊不重複)
+ *   ② 單邊 ≥ 1000px
+ *   ③ 檔案 < 10 MB
+ *   ④ 實際 Content-Type 是 image/jpeg 或 image/png
+ *      (擋 Shopify CDN 偷塞 webp:URL 寫 .jpeg 但 server 回 webp)
+ *   ⑤ 解析度 72 dpi:略,web image 預設都是 72,讀 EXIF/IHDR 成本太高
+ *
+ * Bytes 與 contentType 為空(代表 HEAD 失敗或 CORS 擋)時保守判定:
+ * 沒能驗證到的就視為不可用,寧可留空讓使用者後台補。
+ */
 export function isPinkoiImageOk(entry: DimEntry | undefined): boolean {
   if (!entry || entry.failedAt) return false;
-  return Math.min(entry.w, entry.h) >= 1000;
+  if (Math.min(entry.w, entry.h) < PINKOI_IMG_MIN_SIDE_PX) return false;
+  if (entry.bytes === undefined || entry.bytes >= PINKOI_IMG_MAX_BYTES) return false;
+  if (!entry.contentType || !/^image\/(jpeg|png)\b/i.test(entry.contentType)) return false;
+  return true;
 }
