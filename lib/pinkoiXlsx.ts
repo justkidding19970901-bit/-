@@ -104,9 +104,9 @@ const PINKOI_TAG_RULES: { keywords: readonly string[]; tags: readonly string[] }
 ];
 
 const PINKOI_BRAND_TAGS = ['墨盾', 'Monna Case', '原創設計'];
-// 通用「場合 / 禮物」備援池,湊到 10 個用
+// 通用「場合 / 禮物」備援池,湊到上限用
 const PINKOI_GIFT_TAGS = ['禮物', '生日禮物', '交換禮物', '情人節禮物', '療癒系', '客製化', '文創'];
-const PINKOI_MAX_TAGS = 10;
+const PINKOI_MAX_TAGS = 7; // 用戶決策 2026-04-30: 從 10 降到 7,避免標籤太雜稀釋焦點
 
 /**
  * Pinkoi V 欄商品顏色:必須是「5. 商品規格對照表」16 個系統選項之一,自填會被退。
@@ -167,14 +167,17 @@ function pinkoiTags(rep: Product, baseName: string, isIPhoneGroup: boolean): str
   if (design && design !== baseName) add(design);
 
   // 2. 類目特定 tag pool(依名稱命中第一條規則)
+  let ruleMatched = false;
   for (const rule of PINKOI_TAG_RULES) {
     if (rule.keywords.some(k => baseName.includes(k))) {
       for (const t of rule.tags) add(t);
+      ruleMatched = true;
       break;
     }
   }
-  // iPhone 群但名稱沒明說殼/套,補手機殼類 tag
-  if (isIPhoneGroup && !tags.some(t => /殼|套|MagSafe/i.test(t))) {
+  // iPhone 群但 **沒有任何規則匹配** 才補手機殼類 tag
+  // (鋼化膜/AirPods 等已有自己 rule 命中,不該再補手機殼 tag)
+  if (!ruleMatched && isIPhoneGroup) {
     for (const t of ['手機殼', 'iPhone殼', 'MagSafe', '防摔殼']) add(t);
   }
 
@@ -388,8 +391,10 @@ function htmlToPlain(html: string): string {
   return stripDecorativeChars(html)
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
-    .replace(/<\/?(p|div|li|h[1-6])[^>]*>/gi, '\n')
+    // <li> 要先轉「• 」(不能跟 p/div/h 一起當作 \n,否則項目符號被吃掉)
     .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/?(p|div|h[1-6])[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -403,24 +408,26 @@ function htmlToPlain(html: string): string {
 }
 
 // 描述空白會被 Pinkoi 退件(限 15-10000 字),用名稱+規格+品牌敘述補
+// fallback 文字保持類目中性,避免對非手機殼類商品(如行動電源、掛繩)顯示誤導內容
 function pinkoiDescription(p: Product): string {
   const desc = htmlToPlain(p.description || '');
   if (desc.length >= 15) return desc.slice(0, 10000);
   const parts = [
     p.name && `商品名稱：${p.name}`,
     p.specs.length && p.specs.map(s => `${s.name}：${s.value}`).join('、'),
-    '本商品為墨盾設計部原創手機殼/手機套，採接單訂製方式生產。如有任何疑問歡迎聯繫客服。',
+    '本商品為墨盾設計部原創設計，採接單訂製方式生產。如有任何疑問歡迎聯繫客服。',
   ].filter(Boolean) as string[];
   return parts.join('\n').slice(0, 10000);
 }
 
 // 摘要限 15-120 字,空白或太短時補品牌標語
+// fallback 用半形逗號分隔(不用全形 ｜ 避免跟名稱欄的紅標規則打架),類目中性
 function pinkoiSummary(p: Product): string {
   const desc = htmlToPlain(p.description || '');
   const base = (desc || p.name || '').replace(/\s+/g, ' ').trim();
   if (base.length >= 15) return base.slice(0, 120);
-  const padded = `${base}｜墨盾原創設計手機殼，接單訂製`.replace(/^｜/, '').slice(0, 120);
-  return padded.length >= 15 ? padded : '墨盾原創設計手機殼/手機套，接單訂製';
+  const padded = `${base}，墨盾原創設計，接單訂製`.replace(/^，/, '').slice(0, 120);
+  return padded.length >= 15 ? padded : '墨盾原創設計，接單訂製，質感生活';
 }
 
 function pinkoiImageList(p: Product, dimCache?: Map<string, DimEntry>): string {
@@ -501,18 +508,24 @@ function pinkoiRowsForGroup(group: ProductGroup, uploadNo: number, dimCache?: Ma
   pushMain(26, pinkoiDescription(repForName));          // AA 商品敘述
 
   // 變體列
+  // Magsafe 規格只屬於 1114 手機殼類目;鋼化膜/鏡頭貼/AirPods 等就算被歸成 iPhone 群
+  // (因為名稱有 i14 Pro 等後綴),也不該套 Magsafe spec — 改用單維度(只填 iPhone 型號)。
+  const categoryF = classifyCategory(group.baseName, group.isIPhone);
+  const isPhoneCase = categoryF.includes(' - 1114');
   const baseSku = (rep.model || '').trim() || `p${uploadNo}`;
   const variantRows: RowCell[][] = group.members.map((m, idx) => {
     const cells: RowCell[] = [];
     cells.push({ col: 0, value: uploadNo });                                       // A
-    if (group.isIPhone) {
+    if (group.isIPhone && isPhoneCase) {
+      // 雙維度:Magsafe × iPhone 型號(僅 1114 手機殼類)
       cells.push({ col: 11, value: '自訂' });                                       // L
       cells.push({ col: 12, value: pinkoiSpec(PINKOI_VARIANT_SPEC_1) });           // M  Magsafe 磁吸底殼
       cells.push({ col: 13, value: '自訂' });                                       // N
       cells.push({ col: 14, value: pinkoiSpec(m.variantLabel) });                  // O  iPhone 型號
     } else {
+      // 單維度:iPhone 群非手機殼類 → 只填 iPhone 型號;通用群 → variantLabel
       cells.push({ col: 11, value: '自訂' });                                       // L
-      cells.push({ col: 12, value: pinkoiSpec(m.variantLabel) });                  // M  通用 suffix
+      cells.push({ col: 12, value: pinkoiSpec(m.variantLabel) });                  // M
     }
     cells.push({ col: 15, value: `${baseSku}-v${String(idx + 1).padStart(2, '0')}` }); // P  SKU
     cells.push({ col: 16, value: m.product.stock });                               // Q  數量
