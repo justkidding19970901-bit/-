@@ -106,17 +106,18 @@ const PINKOI_BRAND_TAGS = ['墨盾', 'Monna Case', '原創設計'];
  */
 const PINKOI_COLOR_RULES: { keywords: readonly string[]; color: string }[] = [
   { keywords: ['粉紅', '粉色', '桃紅', '玫粉'], color: '粉紅色' },
-  { keywords: ['沙漠金', '玫瑰金', '香檳金', '鈦金', '金'], color: '金色' },
-  { keywords: ['銀色', '鉑銀', '銀'], color: '銀色' },
-  { keywords: ['深紫', '淺紫', '紫紅', '葡萄', '紫'], color: '紫色' },
-  { keywords: ['勃根地紅', '酒紅', '紫紅', '玫紅', '紅'], color: '紅色' },
+  // 「金」單字會誤命中「鋁合金」「金屬」等,只留具體金色名稱
+  { keywords: ['沙漠金', '玫瑰金', '香檳金', '鈦金', '黃金'], color: '金色' },
+  { keywords: ['銀色', '鉑銀'], color: '銀色' },
+  { keywords: ['深紫', '淺紫', '葡萄紫', '紫'], color: '紫色' },
+  { keywords: ['勃根地紅', '酒紅', '玫紅', '紅'], color: '紅色' },
   { keywords: ['橘色', '橙', '橘'], color: '橘色' },
-  { keywords: ['鵝黃', '金黃', '黃'], color: '黃色' },
+  { keywords: ['鵝黃', '黃'], color: '黃色' },
   { keywords: ['翠綠', '墨綠', '軍綠', '橄欖綠', '綠'], color: '綠色' },
   { keywords: ['海藍', '天藍', '深藍', '湛藍', '藏青', '藍'], color: '藍色' },
   { keywords: ['卡其', '米色', '駝色'], color: '卡其色' },
   { keywords: ['咖啡', '棕色', '棕', '茶色', '巧克力'], color: '咖啡色' },
-  { keywords: ['銀灰', '深灰', '淺灰', '灰'], color: '灰色' },
+  { keywords: ['銀灰', '深灰', '淺灰', '灰色', '灰'], color: '灰色' },
   { keywords: ['純黑', '墨色', '黑'], color: '黑色' },
   { keywords: ['米白', '純白', '白'], color: '白色' },
   { keywords: ['透明'], color: '透明' },
@@ -125,10 +126,14 @@ const PINKOI_COLOR_RULES: { keywords: readonly string[]; color: string }[] = [
 
 function detectPinkoiColor(...sources: string[]): string {
   const haystack = sources.filter(Boolean).join(' ');
+  const hits = new Set<string>();
   for (const rule of PINKOI_COLOR_RULES) {
-    if (rule.keywords.some(k => haystack.includes(k))) return rule.color;
+    if (rule.keywords.some(k => haystack.includes(k))) {
+      hits.add(rule.color);
+      if (hits.size >= 2) return '多色'; // 多變體跨多色 → Pinkoi「多色」
+    }
   }
-  return ''; // 偵測不到就留空(選填,Pinkoi 不會退)
+  return hits.size === 1 ? [...hits][0] : ''; // 0 個留空(選填)
 }
 
 function pinkoiTags(rep: Product, baseName: string, isIPhoneGroup: boolean): string {
@@ -420,6 +425,8 @@ function pinkoiRowsForGroup(group: ProductGroup, uploadNo: number, dimCache?: Ma
   pushMain(18, PINKOI_PRESETS.BSMI);                    // S  BSMI
   pushMain(19, PINKOI_PRESETS.NCC);                     // T  NCC
   pushMain(20, PINKOI_PRESETS.商品材質);                // U  商品材質
+  // V 商品顏色 — 從 baseName + 變體 suffix 偵測 Pinkoi 16 系統色,偵測不到留空
+  pushMain(21, detectPinkoiColor(group.baseName, ...group.members.map(m => m.variantLabel)));
   pushMain(23, PINKOI_PRESETS.對象);                    // X  對象
   pushMain(24, pinkoiTags(rep, group.baseName, group.isIPhone)); // Y  商品標籤(自動填)
   pushMain(25, pinkoiSummary(repForName));              // Z  商品摘要
