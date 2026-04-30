@@ -226,18 +226,45 @@ interface NameClass {
  * - 不匹配但有 suffix → 通用群,共用同一 base 的商品合併成 1 個 listing × N 變體列(N = 群成員數)
  * - 沒 suffix → 視為單獨一群,1 個 listing × 1 預設變體
  */
+/**
+ * 名稱裡常見模式:`<設計> <顏色> - <iPhone型號>`(例:鋁合金防摔殼 深紫 - i14)。
+ * 同設計不同色其實是同一個 Pinkoi listing,要把顏色從 base 摘掉,讓所有色版
+ * 合併進同一個 group 並展開 18 iPhone 變體。
+ *
+ * 實作:抓 base 的最後一個「空格/全形|/】」之後的 token,若它**完全等於**
+ * 已知的 Pinkoi 顏色關鍵字(PINKOI_COLOR_RULES,如「深紫」「勃根地紅」「藍」)
+ * 就剝掉。**只比對精確 token**,避免把「藍鯨手機殼」誤剝成「鯨手機殼」。
+ */
+function stripTrailingColorFromBase(base: string): string {
+  const colorKws = PINKOI_COLOR_RULES.flatMap(r => r.keywords);
+  const parts = base.split(/(\s+|\s*\|\s*|】)/);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    if (!p || /^(\s+|\s*\|\s*|】)$/.test(p)) continue;
+    if (colorKws.some(k => p === k)) {
+      const before = parts.slice(0, i).join('');
+      return before.replace(/[\s|]+$/, '');
+    }
+    break;
+  }
+  return base;
+}
+
 function classifyName(name: string): NameClass {
   const normalized = normalizeNameForGrouping(name);
   for (const model of PINKOI_VARIANT_MODELS) {
     const dashSuffix = ` - ${model}`;
     if (normalized.endsWith(dashSuffix)) {
-      return { base: normalized.slice(0, -dashSuffix.length), modelMatch: model, suffix: model };
+      const rawBase = normalized.slice(0, -dashSuffix.length);
+      return { base: stripTrailingColorFromBase(rawBase), modelMatch: model, suffix: model };
     }
   }
   const lastDash = normalized.lastIndexOf(' - ');
   if (lastDash > 0) {
+    // 用戶資料常見「<設計> <顏色> - <非標準 iPhone 型號>」(例 i11、i12pro),
+    // 這些走通用路徑,但 base 仍應剝色,以利同設計不同色合併
     return {
-      base: normalized.slice(0, lastDash),
+      base: stripTrailingColorFromBase(normalized.slice(0, lastDash)),
       modelMatch: null,
       suffix: normalized.slice(lastDash + 3),
     };
