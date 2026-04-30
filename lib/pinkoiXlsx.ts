@@ -77,6 +77,58 @@ function classifyCategory(baseName: string, isIPhoneGroup: boolean): string {
 }
 
 /**
+ * 商品標籤(Y 欄)自動填充策略 - Pinkoi 建議填(影響搜尋曝光)。
+ * 用戶有自填就保留;沒填就從 baseName + 類目自動衍生。
+ */
+const PINKOI_TAG_RULES: { keywords: readonly string[]; tags: readonly string[] }[] = [
+  { keywords: ['鋼化膜', '保護貼', '玻璃貼', '保護膜'],
+    tags: ['鋼化膜', '保護貼', '螢幕保護貼', 'iPhone保護貼'] },
+  { keywords: ['鏡頭貼', '鏡頭膜'],
+    tags: ['鏡頭貼', '相機保護貼', 'iPhone鏡頭貼'] },
+  { keywords: ['AirPods', '耳機套', '耳機保護', '鎖扣開關', '支架開關', '毛呢耳機'],
+    tags: ['AirPods', 'AirPods Pro', '耳機保護套', 'AirPods 殼'] },
+  { keywords: ['行動電源', '充電線', '充電器'],
+    tags: ['行動電源', '充電寶', '手機充電'] },
+  { keywords: ['掛繩', '吊飾', '背帶'],
+    tags: ['手機掛繩', '吊飾', '手機背帶'] },
+  // 預設(手機殼類)放最後
+  { keywords: ['手機殼', '手機套', 'MagSafe', 'IC鏡面', 'TP冰川', 'MS防摔',
+                '鋁合金防摔', '極簡防摔', '防摔殼', '防摔', 'Magsafe'],
+    tags: ['手機殼', 'iPhone殼', 'MagSafe', '防摔殼', '手機保護殼'] },
+];
+
+const PINKOI_BRAND_TAGS = ['墨盾', 'Monna Case', '原創設計'];
+
+function pinkoiTags(rep: Product, baseName: string, isIPhoneGroup: boolean): string {
+  // 用戶有自填 tags 就保留(信任設計師判斷)
+  const userTags = stripDecorativeChars((rep.tags || '').trim());
+  if (userTags) return userTags;
+
+  const tags: string[] = [];
+
+  // 從 baseName 抽設計名稱(去掉開頭【...】系列前綴)
+  const design = baseName.replace(/^【[^】]*】\s*/, '').trim();
+  if (design && design !== baseName) tags.push(design);
+
+  // 類目關鍵字(依名稱命中第一條 PINKOI_TAG_RULES)
+  for (const rule of PINKOI_TAG_RULES) {
+    if (rule.keywords.some(k => baseName.includes(k))) {
+      tags.push(...rule.tags);
+      break;
+    }
+  }
+  // iPhone 群但名稱沒明說殼/套,補手機殼類 tag
+  if (isIPhoneGroup && !tags.some(t => /殼|套|MagSafe/i.test(t))) {
+    tags.push('手機殼', 'iPhone殼', 'MagSafe');
+  }
+
+  tags.push(...PINKOI_BRAND_TAGS);
+
+  // 去重 + 半形逗號分隔(Pinkoi 標準格式)
+  return Array.from(new Set(tags.filter(Boolean))).join(',');
+}
+
+/**
  * iPhone 手機殼設計商品的固定規格組合,對齊 Pinkoi 後台:
  *   自訂(1) Magsafe 磁吸底殼 × 自訂(2) 18 個 iPhone 型號。
  * 順序照後台截圖排,不要動。半形 | 是 Pinkoi 規格系統使用的字元
@@ -336,7 +388,7 @@ function pinkoiRowsForGroup(group: ProductGroup, uploadNo: number, dimCache?: Ma
   pushMain(19, PINKOI_PRESETS.NCC);                     // T  NCC
   pushMain(20, PINKOI_PRESETS.商品材質);                // U  商品材質
   pushMain(23, PINKOI_PRESETS.對象);                    // X  對象
-  pushMain(24, rep.tags);                               // Y  商品標籤
+  pushMain(24, pinkoiTags(rep, group.baseName, group.isIPhone)); // Y  商品標籤(自動填)
   pushMain(25, pinkoiSummary(repForName));              // Z  商品摘要
   pushMain(26, pinkoiDescription(repForName));          // AA 商品敘述
 
