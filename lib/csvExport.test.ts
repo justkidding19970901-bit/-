@@ -73,9 +73,19 @@ describe('validateForPlatform', () => {
     expect(issues.some(i => i.level === 'error' && i.message.includes('售價'))).toBe(true);
   });
 
-  it('flags missing image as error', () => {
-    const issues = validateForPlatform('pinkoi', [makeProduct({ imageUrls: [] })]);
+  it('flags missing image as error for non-Pinkoi platforms', () => {
+    const issues = validateForPlatform('shopee', [makeProduct({ imageUrls: [] })]);
     expect(issues.some(i => i.level === 'error' && i.message.includes('商品圖'))).toBe(true);
+  });
+
+  it('Pinkoi does not flag missing image (D 欄留空策略)', () => {
+    const issues = validateForPlatform('pinkoi', [makeProduct({ imageUrls: [] })]);
+    expect(issues.some(i => i.message.includes('商品圖'))).toBe(false);
+  });
+
+  it('Pinkoi flags out-of-range stock', () => {
+    const issues = validateForPlatform('pinkoi', [makeProduct({ stock: 99999 })]);
+    expect(issues.some(i => i.level === 'error' && i.message.includes('數量'))).toBe(true);
   });
 
   it('flags missing Momo category code', () => {

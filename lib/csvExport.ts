@@ -261,11 +261,24 @@ export interface ProductIssue {
   message: string;
 }
 
-function commonIssues(p: Product): ProductIssue[] {
+function commonIssues(p: Product, platform: Platform): ProductIssue[] {
   const issues: ProductIssue[] = [];
   const base = { productId: p.id, productName: p.name || '(未命名商品)' };
   if (!p.name?.trim()) issues.push({ ...base, level: 'error', message: '商品名稱必填' });
   if (!p.price || p.price <= 0) issues.push({ ...base, level: 'error', message: '售價必填且須大於 0' });
+
+  // Pinkoi 走專屬 xlsx 流程,部分檢查不適用:
+  // - 圖片:用戶決定 D 欄整批留空,後台批次補圖
+  // - 描述:pinkoiDescription 會自動 fallback 用名稱+規格+品牌敘述湊到 15 字
+  // - 重量:Pinkoi 範本沒有重量欄,不需要
+  // - 數量範圍:Pinkoi 限 0-50000
+  if (platform === 'pinkoi') {
+    if (p.stock < 0 || p.stock > 50000) {
+      issues.push({ ...base, level: 'error', message: `數量必須是 0-50000(目前 ${p.stock})` });
+    }
+    return issues;
+  }
+
   if (!p.imageUrls?.length) issues.push({ ...base, level: 'error', message: '至少需要一張商品圖' });
   if (!p.description?.trim()) issues.push({ ...base, level: 'warn', message: '建議補商品描述（影響轉換率）' });
   if (!p.weightG) issues.push({ ...base, level: 'warn', message: '建議填重量（多家平台計算運費用）' });
@@ -312,7 +325,7 @@ export function validateForPlatform(platform: Platform, products: Product[]): Pr
   }
   for (const p of products) {
     const base = { productId: p.id, productName: p.name || '(未命名商品)' };
-    all.push(...commonIssues(p));
+    all.push(...commonIssues(p, platform));
     if (platform === 'momo' && !p.momoCategoryCode?.trim()) {
       all.push({ ...base, level: 'error', message: 'Momo 分類碼必填（去後台分類樹查）' });
     }
@@ -325,9 +338,8 @@ export function validateForPlatform(platform: Platform, products: Product[]): Pr
     if (platform === 'ruten' && !p.rutenCategoryCode?.trim() && !p.category?.trim()) {
       all.push({ ...base, level: 'warn', message: 'Ruten 建議填分類' });
     }
-    if (platform === 'pinkoi' && !p.tags?.trim()) {
-      all.push({ ...base, level: 'warn', message: 'Pinkoi 建議填關鍵字（影響搜尋曝光）' });
-    }
+    // Pinkoi tags 自動填,不需要警告;改為提示用戶有自填會被保留
+    // (移除舊的「建議填關鍵字」警告)
   }
   return all;
 }
