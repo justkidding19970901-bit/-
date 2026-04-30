@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import type { Product, Platform } from '../types';
 import { buildCSV, downloadCSV, PLATFORM_META, validateForPlatform } from '../lib/csvExport';
 import { buildPinkoiXlsxBatches, downloadXlsx } from '../lib/pinkoiXlsx';
-import { scanImageDims, type ScanProgress } from '../lib/imageDims';
 import { CsvPreview } from './CsvPreview';
 import { showAlert } from '../lib/dialog';
 
@@ -21,7 +20,6 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
   const platforms = Object.keys(PLATFORM_META) as Platform[];
   const [auditPlatform, setAuditPlatform] = useState<Platform | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState<Platform | null>(null);
-  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
 
   const previewCsv = useMemo(
     () => (previewPlatform && PLATFORM_META[previewPlatform].format === 'csv'
@@ -39,18 +37,8 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
     const meta = PLATFORM_META[platform];
     if (meta.format === 'xlsx') {
       try {
-        // 先掃所有合格 URL 的尺寸 (Pinkoi 要求單邊 ≥ 1000px,小於就濾掉)
-        const allUrls = new Set<string>();
-        for (const p of products) {
-          for (const u of (p.imageUrls || [])) {
-            const t = u.trim();
-            if (/^https?:\/\//i.test(t) && /\.(jpe?g|png)(\?|$|#)/i.test(t)) allUrls.add(t);
-          }
-        }
-        setScanProgress({ done: 0, total: allUrls.size, cached: 0 });
-        const dimCache = await scanImageDims(allUrls, p => setScanProgress(p));
-        setScanProgress(null);
-        const batches = await buildPinkoiXlsxBatches(products, dimCache);
+        // D 欄圖片整批留空(用戶決策),不需要再掃 URL 尺寸/格式
+        const batches = await buildPinkoiXlsxBatches(products);
         if (batches.length === 1) {
           downloadXlsx(batches[0].filename, batches[0].bytes);
           return;
@@ -78,8 +66,6 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
           title: `${meta.label} 匯出失敗`,
           body: err instanceof Error ? err.message : String(err),
         });
-      } finally {
-        setScanProgress(null);
       }
       return;
     }
@@ -148,30 +134,6 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
         />
       )}
 
-      {scanProgress && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-             role="dialog" aria-modal="true" aria-label="掃描圖片尺寸進度">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5">
-            <h3 className="text-base font-bold text-slate-800 mb-1">📐 檢查圖片尺寸</h3>
-            <p className="text-xs text-slate-600 leading-relaxed mb-3">
-              Pinkoi 要求單邊 ≥ 1000px，正在逐張載入確認。第一次跑會慢一點，結果會快取，下次秒過。
-            </p>
-            <div className="text-sm text-slate-700 mb-2 flex justify-between">
-              <span>{scanProgress.done.toLocaleString()} / {scanProgress.total.toLocaleString()}</span>
-              <span className="text-slate-500">
-                {scanProgress.total > 0 ? ((scanProgress.done / scanProgress.total) * 100).toFixed(1) : '0'}%
-                {scanProgress.cached > 0 && ` · ${scanProgress.cached.toLocaleString()} 已快取`}
-              </span>
-            </div>
-            <div className="h-2 bg-slate-200 rounded overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 transition-all"
-                style={{ width: `${scanProgress.total > 0 ? (scanProgress.done / scanProgress.total) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
 
       <button onClick={exportAll} disabled={disabled}

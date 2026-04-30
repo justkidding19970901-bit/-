@@ -415,8 +415,11 @@ function pinkoiRowsForGroup(group: ProductGroup, uploadNo: number, dimCache?: Ma
   };
   pushMain(0, uploadNo);                                // A  商品上傳編號
   pushMain(1, PINKOI_PRESETS.販售許可);                  // B  販售許可
-  // D 商品圖片 — Pinkoi 規範「同商品不同規格,圖片只填第一列」,所以只在主列填
-  pushMain(3, pinkoiImageList(rep, dimCache));          // D  商品圖片
+  // D 商品圖片 — 用戶決策(2026-04-30):整批留空,後台用「批次編輯商品圖片」補。
+  // 自動過濾的失敗率太高(尺寸<1000px、CDN 偷塞 webp、無圖商品多),不如一律空白。
+  // pinkoiImageList / dimCache / scanImageDims 程式碼保留為休眠模組,日後恢復解註下行即可。
+  void pinkoiImageList; void dimCache; void rep;
+  // pushMain(3, pinkoiImageList(rep, dimCache));
   pushMain(4, pinkoiName(group.baseName));              // E  商品名稱 (用 baseName)
   pushMain(5, classifyCategory(group.baseName, group.isIPhone)); // F  商品分類(依名稱關鍵字判定)
   pushMain(6, PINKOI_PRESETS.製造方式);                  // G  製造方式
