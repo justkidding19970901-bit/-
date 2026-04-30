@@ -8,16 +8,36 @@ import { CollectionScrape } from './components/CollectionScrape';
 import { DataToolbar } from './components/DataToolbar';
 import { BulkActions } from './components/BulkActions';
 import { mergeProducts, previewMerge, type ImportMode, type MergeReport, type DiffEntry } from './lib/syncMerge';
-import { loadProducts, saveProducts, type SaveResult } from './lib/migration';
+import {
+  loadProductsAsync,
+  saveProductsAsync,
+  getStorageEstimate,
+  type SaveResult,
+  type StorageEstimate,
+} from './lib/storage';
 import { DiffPreview } from './components/DiffPreview';
 import { DialogHost, showAlert, showConfirm } from './lib/dialog';
 import { makeId } from './lib/id';
 import { readExcelFile, rowsToProducts } from './lib/excelImport';
 
 const STORAGE_KEY = 'product_migration_v1';
+const AUTO_BACKUP_THRESHOLD = 0.8;
+
+function downloadBackup(products: Product[]) {
+  const payload = { version: 1, exportedAt: new Date().toISOString(), products };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+  a.download = `products-backup-${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
 
 const App: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(() => loadProducts(STORAGE_KEY));
+  const [products, setProducts] = useState<Product[]>([]);
   const [editing, setEditing] = useState<Product | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [syncMode, setSyncMode] = useState<boolean>(true);
@@ -25,6 +45,9 @@ const App: React.FC = () => {
   const [lastReport, setLastReport] = useState<MergeReport | null>(null);
   const [pendingImport, setPendingImport] = useState<{ incoming: Product[]; mode: ImportMode; diffs: DiffEntry[] } | null>(null);
   const [saveError, setSaveError] = useState<Extract<SaveResult, { ok: false }> | null>(null);
+  const [storageEstimate, setStorageEstimate] = useState<StorageEstimate | null>(null);
+  const hydratedRef = useRef(false);
+  const autoBackedUpRef = useRef(false);
 
   const applyImport = (incoming: Product[], mode: ImportMode) => {
     setProducts(prev => {
@@ -60,9 +83,48 @@ const App: React.FC = () => {
     setPendingImport(null);
   };
 
+  // Hydrate from IndexedDB on mount (with one-time localStorage migration).
   useEffect(() => {
-    const result = saveProducts(STORAGE_KEY, products);
-    setSaveError(result.ok ? null : result);
+    let cancelled = false;
+    (async () => {
+      const loaded = await loadProductsAsync(STORAGE_KEY);
+      if (cancelled) return;
+      if (loaded.length) setProducts(loaded);
+      hydratedRef.current = true;
+      const est = await getStorageEstimate();
+      if (!cancelled) setStorageEstimate(est);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist on every change, but skip the initial empty-state render that
+  // happens before hydration completes (otherwise we'd wipe IDB on reload).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    let cancelled = false;
+    (async () => {
+      const result = await saveProductsAsync(products);
+      if (cancelled) return;
+      setSaveError(result.ok ? null : result);
+      const est = await getStorageEstimate();
+      if (cancelled) return;
+      setStorageEstimate(est);
+      if (
+        result.ok &&
+        est &&
+        est.percent >= AUTO_BACKUP_THRESHOLD &&
+        !autoBackedUpRef.current &&
+        products.length > 0
+      ) {
+        autoBackedUpRef.current = true;
+        downloadBackup(products);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [products]);
 
   // Global keyboard shortcut: Cmd/Ctrl+S downloads a backup
@@ -71,16 +133,7 @@ const App: React.FC = () => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (products.length === 0) return;
-        const payload = { version: 1, exportedAt: new Date().toISOString(), products };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
-        a.download = `products-backup-${ts}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(a.href);
+        downloadBackup(products);
       }
     };
     window.addEventListener('keydown', handler);
@@ -202,7 +255,9 @@ const App: React.FC = () => {
     }
   };
 
-  const storageWarn = products.length > 200;
+  const storagePct = storageEstimate?.percent ?? null;
+  const storageLevel: 'ok' | 'warn' | 'danger' =
+    storagePct == null ? 'ok' : storagePct >= AUTO_BACKUP_THRESHOLD ? 'danger' : storagePct >= 0.5 ? 'warn' : 'ok';
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -249,26 +304,51 @@ const App: React.FC = () => {
                 </span>
               </div>
               <button
-                onClick={() => {
-                  const payload = { version: 1, exportedAt: new Date().toISOString(), products };
-                  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-                  const a = document.createElement('a');
-                  a.href = URL.createObjectURL(blob);
-                  const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
-                  a.download = `products-backup-${ts}.json`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(a.href);
-                }}
+                onClick={() => downloadBackup(products)}
                 className="shrink-0 px-3 py-1 bg-rose-700 hover:bg-rose-600 text-white rounded font-bold">
                 💾 立刻下載備份
               </button>
             </div>
           )}
-          {storageWarn && (
-            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-              ⚠️ 已超過 200 件商品，瀏覽器儲存空間可能不足。建議「下載備份檔」並考慮分批處理。
+          {storageEstimate && (
+            <div
+              className={
+                storageLevel === 'danger'
+                  ? 'text-[11px] text-rose-800 bg-rose-50 border border-rose-200 rounded px-2 py-1.5'
+                  : storageLevel === 'warn'
+                  ? 'text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5'
+                  : 'text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5'
+              }
+              role={storageLevel === 'danger' ? 'alert' : undefined}
+              aria-live={storageLevel === 'danger' ? 'polite' : undefined}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span>
+                  💾 瀏覽器儲存空間：
+                  <span className="font-semibold">
+                    {(storageEstimate.usage / 1024 / 1024).toFixed(1)} MB
+                  </span>
+                  <span className="text-slate-500"> / </span>
+                  {(storageEstimate.quota / 1024 / 1024).toFixed(0)} MB
+                  <span className="ml-1 font-semibold">
+                    ({(storageEstimate.percent * 100).toFixed(1)}%)
+                  </span>
+                </span>
+                {storageLevel === 'danger' && (
+                  <span className="font-semibold">⚠️ 已超過 80%，系統已自動下載備份</span>
+                )}
+              </div>
+              <div className="mt-1 h-1 w-full bg-slate-200 rounded overflow-hidden">
+                <div
+                  className={
+                    storageLevel === 'danger'
+                      ? 'h-full bg-rose-500'
+                      : storageLevel === 'warn'
+                      ? 'h-full bg-amber-500'
+                      : 'h-full bg-emerald-500'
+                  }
+                  style={{ width: `${Math.min(100, storageEstimate.percent * 100).toFixed(1)}%` }}
+                />
+              </div>
             </div>
           )}
           {lastReport && (
