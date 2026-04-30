@@ -99,6 +99,38 @@ const PINKOI_TAG_RULES: { keywords: readonly string[]; tags: readonly string[] }
 
 const PINKOI_BRAND_TAGS = ['墨盾', 'Monna Case', '原創設計'];
 
+/**
+ * Pinkoi V 欄商品顏色:必須是「5. 商品規格對照表」16 個系統選項之一,自填會被退。
+ * 偵測策略:從變體 suffix 與 baseName 比對關鍵字,命中才填,沒命中就留空(選填)。
+ * 順序鎖死「複合詞 → 單字」,例如「粉紅」必須在「紅」之前。
+ */
+const PINKOI_COLOR_RULES: { keywords: readonly string[]; color: string }[] = [
+  { keywords: ['粉紅', '粉色', '桃紅', '玫粉'], color: '粉紅色' },
+  { keywords: ['沙漠金', '玫瑰金', '香檳金', '鈦金', '金'], color: '金色' },
+  { keywords: ['銀色', '鉑銀', '銀'], color: '銀色' },
+  { keywords: ['深紫', '淺紫', '紫紅', '葡萄', '紫'], color: '紫色' },
+  { keywords: ['勃根地紅', '酒紅', '紫紅', '玫紅', '紅'], color: '紅色' },
+  { keywords: ['橘色', '橙', '橘'], color: '橘色' },
+  { keywords: ['鵝黃', '金黃', '黃'], color: '黃色' },
+  { keywords: ['翠綠', '墨綠', '軍綠', '橄欖綠', '綠'], color: '綠色' },
+  { keywords: ['海藍', '天藍', '深藍', '湛藍', '藏青', '藍'], color: '藍色' },
+  { keywords: ['卡其', '米色', '駝色'], color: '卡其色' },
+  { keywords: ['咖啡', '棕色', '棕', '茶色', '巧克力'], color: '咖啡色' },
+  { keywords: ['銀灰', '深灰', '淺灰', '灰'], color: '灰色' },
+  { keywords: ['純黑', '墨色', '黑'], color: '黑色' },
+  { keywords: ['米白', '純白', '白'], color: '白色' },
+  { keywords: ['透明'], color: '透明' },
+  { keywords: ['多色', '彩色', '漸層', '混色'], color: '多色' },
+];
+
+function detectPinkoiColor(...sources: string[]): string {
+  const haystack = sources.filter(Boolean).join(' ');
+  for (const rule of PINKOI_COLOR_RULES) {
+    if (rule.keywords.some(k => haystack.includes(k))) return rule.color;
+  }
+  return ''; // 偵測不到就留空(選填,Pinkoi 不會退)
+}
+
 function pinkoiTags(rep: Product, baseName: string, isIPhoneGroup: boolean): string {
   // 用戶有自填 tags 就保留(信任設計師判斷)
   const userTags = stripDecorativeChars((rep.tags || '').trim());
@@ -322,12 +354,13 @@ function pinkoiSummary(p: Product): string {
 }
 
 function pinkoiImageList(p: Product, dimCache?: Map<string, DimEntry>): string {
+  // Pinkoi 規範:半形「,」區隔,逗號後不加空格
   return p.imageUrls
     .map(s => s.trim())
     .filter(s => /^https?:\/\//i.test(s) && /\.(jpe?g|png)(\?|$|#)/i.test(s))
     .filter(s => (dimCache ? isPinkoiImageOk(dimCache.get(s)) : true))
     .slice(0, 9)
-    .join(', ');
+    .join(',');
 }
 
 // Pinkoi 商品名稱不接受全形 ｜(會被紅標),換空格。
