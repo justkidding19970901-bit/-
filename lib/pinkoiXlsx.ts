@@ -149,7 +149,9 @@ function pinkoiTags(rep: Product, baseName: string, isIPhoneGroup: boolean): str
   const seen = new Set<string>();
   const add = (raw: string) => {
     if (tags.length >= PINKOI_MAX_TAGS) return;
-    const cleaned = cleanPinkoiText(stripDecorativeChars(raw));
+    // 壓掉所有空白(用戶指示:tag 內部不留空格,讓「MagSafe 充電」變「MagSafe充電」、
+    // 「Monna Case」變「MonnaCase」)。逗號分隔本來就沒空格。
+    const cleaned = cleanPinkoiText(stripDecorativeChars(raw)).replace(/\s+/g, '');
     if (!cleaned || seen.has(cleaned)) return;
     seen.add(cleaned);
     tags.push(cleaned);
