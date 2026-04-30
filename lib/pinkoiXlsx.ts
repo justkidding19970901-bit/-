@@ -81,23 +81,27 @@ function classifyCategory(baseName: string, isIPhoneGroup: boolean): string {
  * 用戶有自填就保留;沒填就從 baseName + 類目自動衍生。
  */
 const PINKOI_TAG_RULES: { keywords: readonly string[]; tags: readonly string[] }[] = [
-  { keywords: ['鋼化膜', '保護貼', '玻璃貼', '保護膜'],
-    tags: ['鋼化膜', '保護貼', '螢幕保護貼', 'iPhone保護貼'] },
+  { keywords: ['鋼化膜', '保護貼', '玻璃貼', '保護膜', '濾藍光'],
+    tags: ['鋼化膜', '保護貼', '螢幕保護貼', 'iPhone保護貼', '9H硬度', '抗藍光', '高清晰', '防刮'] },
   { keywords: ['鏡頭貼', '鏡頭膜'],
-    tags: ['鏡頭貼', '相機保護貼', 'iPhone鏡頭貼'] },
+    tags: ['鏡頭貼', '相機保護貼', 'iPhone鏡頭貼', '鏡頭保護', '高清防刮', '攝影保護'] },
   { keywords: ['AirPods', '耳機套', '耳機保護', '鎖扣開關', '支架開關', '毛呢耳機'],
-    tags: ['AirPods', 'AirPods Pro', '耳機保護套', 'AirPods 殼'] },
+    tags: ['AirPods', 'AirPods Pro', 'AirPods 殼', '耳機保護套', '耳機殼', '矽膠殼', '防摔保護'] },
   { keywords: ['行動電源', '充電線', '充電器'],
-    tags: ['行動電源', '充電寶', '手機充電'] },
+    tags: ['行動電源', '充電寶', '手機充電', '快充', '高容量', 'MagSafe 充電', '行動充電'] },
   { keywords: ['掛繩', '吊飾', '背帶'],
-    tags: ['手機掛繩', '吊飾', '手機背帶'] },
+    tags: ['手機掛繩', '吊飾', '手機背帶', '可愛吊飾', '文創禮品', '療癒小物', '掛飾'] },
   // 預設(手機殼類)放最後
   { keywords: ['手機殼', '手機套', 'MagSafe', 'IC鏡面', 'TP冰川', 'MS防摔',
                 '鋁合金防摔', '極簡防摔', '防摔殼', '防摔', 'Magsafe'],
-    tags: ['手機殼', 'iPhone殼', 'MagSafe', '防摔殼', '手機保護殼'] },
+    tags: ['手機殼', 'iPhone殼', 'MagSafe', '防摔殼', '手機保護殼', '軍規防摔', '磁吸殼',
+            'iPhone保護殼', 'iPhone手機殼'] },
 ];
 
 const PINKOI_BRAND_TAGS = ['墨盾', 'Monna Case', '原創設計'];
+// 通用「場合 / 禮物」備援池,湊到 10 個用
+const PINKOI_GIFT_TAGS = ['禮物', '生日禮物', '交換禮物', '情人節禮物', '療癒系', '客製化', '文創'];
+const PINKOI_MAX_TAGS = 10;
 
 /**
  * Pinkoi V 欄商品顏色:必須是「5. 商品規格對照表」16 個系統選項之一,自填會被退。
@@ -142,27 +146,38 @@ function pinkoiTags(rep: Product, baseName: string, isIPhoneGroup: boolean): str
   if (userTags) return userTags;
 
   const tags: string[] = [];
+  const seen = new Set<string>();
+  const add = (raw: string) => {
+    if (tags.length >= PINKOI_MAX_TAGS) return;
+    const cleaned = cleanPinkoiText(stripDecorativeChars(raw));
+    if (!cleaned || seen.has(cleaned)) return;
+    seen.add(cleaned);
+    tags.push(cleaned);
+  };
 
-  // 從 baseName 抽設計名稱(去掉開頭【...】系列前綴)
+  // 1. 設計名稱(去掉開頭【...】系列前綴)
   const design = baseName.replace(/^【[^】]*】\s*/, '').trim();
-  if (design && design !== baseName) tags.push(design);
+  if (design && design !== baseName) add(design);
 
-  // 類目關鍵字(依名稱命中第一條 PINKOI_TAG_RULES)
+  // 2. 類目特定 tag pool(依名稱命中第一條規則)
   for (const rule of PINKOI_TAG_RULES) {
     if (rule.keywords.some(k => baseName.includes(k))) {
-      tags.push(...rule.tags);
+      for (const t of rule.tags) add(t);
       break;
     }
   }
   // iPhone 群但名稱沒明說殼/套,補手機殼類 tag
   if (isIPhoneGroup && !tags.some(t => /殼|套|MagSafe/i.test(t))) {
-    tags.push('手機殼', 'iPhone殼', 'MagSafe');
+    for (const t of ['手機殼', 'iPhone殼', 'MagSafe', '防摔殼']) add(t);
   }
 
-  tags.push(...PINKOI_BRAND_TAGS);
+  // 3. 品牌
+  for (const t of PINKOI_BRAND_TAGS) add(t);
 
-  // 去重 + 半形逗號分隔(Pinkoi 標準格式)
-  return Array.from(new Set(tags.filter(Boolean))).join(',');
+  // 4. 通用場合/禮物備援,湊到 10 個
+  for (const t of PINKOI_GIFT_TAGS) add(t);
+
+  return tags.join(',');
 }
 
 /**
