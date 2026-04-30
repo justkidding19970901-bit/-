@@ -52,12 +52,12 @@ const PINKOI_CATEGORY_RULES: { keywords: readonly string[]; label: string }[] = 
     label: '創意科技 > 行動電源/充電線 - 1113' },
   { keywords: ['充電盤', '充電板', '無線充電'],
     label: '創意科技 > 無線充電盤/板/座 - 1122' },
-  // 耳機殼 用戶指定歸 1120 手機配件,要在 AirPods 規則之前(避免被 1121 搶走)
-  { keywords: ['耳機殼', '鏡頭貼', '鏡頭膜'],
+  { keywords: ['鏡頭貼', '鏡頭膜'],
     label: '創意科技 > 手機配件 - 1120' },
   { keywords: ['鋼化膜', '保護貼', '玻璃貼', '保護膜', '濾藍光'],
     label: '創意科技 > 平板/電腦保護殼/保護貼 - 1108' },
-  { keywords: ['AirPods', '耳機套', '耳機保護', '鎖扣開關', '支架開關', '毛呢耳機'],
+  // 耳機殼 也歸 1121 (用戶確認)
+  { keywords: ['AirPods', '耳機殼', '耳機套', '耳機保護', '鎖扣開關', '支架開關', '毛呢耳機'],
     label: '創意科技 > AirPods/耳機保護套 - 1121' },
   { keywords: ['手機支架', '平板支架'],
     label: '創意科技 > 手機/平板支架 - 1115' },
@@ -86,12 +86,10 @@ function classifyCategory(baseName: string, isIPhoneGroup: boolean): string {
 const PINKOI_TAG_RULES: { keywords: readonly string[]; tags: readonly string[] }[] = [
   { keywords: ['鋼化膜', '保護貼', '玻璃貼', '保護膜', '濾藍光'],
     tags: ['鋼化膜', '保護貼', '螢幕保護貼', 'iPhone保護貼', '9H硬度', '抗藍光', '高清晰', '防刮'] },
-  // 耳機殼歸 1120 手機配件;要在 AirPods 之前避免被搶
-  { keywords: ['耳機殼'],
-    tags: ['耳機殼', '耳機保護殼', 'AirPods 殼', '耳機保護', '防摔耳機殼', '矽膠殼', '耳機配件'] },
   { keywords: ['鏡頭貼', '鏡頭膜'],
     tags: ['鏡頭貼', '相機保護貼', 'iPhone鏡頭貼', '鏡頭保護', '高清防刮', '攝影保護'] },
-  { keywords: ['AirPods', '耳機套', '耳機保護', '鎖扣開關', '支架開關', '毛呢耳機'],
+  // 耳機殼 與 耳機套 都歸 1121
+  { keywords: ['AirPods', '耳機殼', '耳機套', '耳機保護', '鎖扣開關', '支架開關', '毛呢耳機'],
     tags: ['AirPods', 'AirPods Pro', 'AirPods 殼', '耳機保護套', '耳機殼', '矽膠殼', '防摔保護'] },
   { keywords: ['行動電源', '充電線', '充電器'],
     tags: ['行動電源', '充電寶', '手機充電', '快充', '高容量', 'MagSafe 充電', '行動充電'] },
