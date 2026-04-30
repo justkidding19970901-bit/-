@@ -238,60 +238,15 @@ function buildRutenCSV(products: Product[]): string {
   return rowsToCSV(headers, rows);
 }
 
-// =============================================================================
-// Pinkoi
-// =============================================================================
-function buildPinkoiCSV(products: Product[]): string {
-  const headers = [
-    '商品料號(SKU)',
-    '商品名稱(中)',
-    '商品名稱(英)',
-    '商品分類',
-    '商品故事',
-    '主要關鍵字',
-    '售價',
-    '限量原價',
-    '庫存',
-    '出貨天數',
-    '商品重量(g)',
-    '商品產地',
-    '商品狀態',
-    '規格名稱', '規格選項',
-    '主圖URL',
-    '副圖1', '副圖2', '副圖3', '副圖4', '副圖5', '副圖6', '副圖7', '副圖8',
-  ];
-  const rows = products.map(p => {
-    const s = p.specs[0];
-    return [
-      p.model || p.id,
-      p.name,
-      '',
-      p.pinkoiCategory || p.category || '',
-      p.description,
-      p.tags,
-      p.price,
-      p.originalPrice ?? '',
-      p.stock,
-      p.shippingDays || 3,
-      p.weightG || '',
-      p.origin,
-      p.condition,
-      s?.name ?? '', s?.value ?? '',
-      img(p, 0),
-      img(p, 1), img(p, 2), img(p, 3), img(p, 4),
-      img(p, 5), img(p, 6), img(p, 7), img(p, 8),
-    ];
-  });
-  return rowsToCSV(headers, rows);
-}
-
 export function buildCSV(platform: Platform, products: Product[]): string {
   switch (platform) {
     case 'momo': return buildMomoCSV(products);
     case 'yahoo': return buildYahooCSV(products);
-    case 'pinkoi': return buildPinkoiCSV(products);
     case 'shopee': return buildShopeeCSV(products);
     case 'ruten': return buildRutenCSV(products);
+    case 'pinkoi':
+      // Pinkoi 用官方 .xlsx 範本,不走 CSV;由 buildPinkoiXlsx 處理
+      throw new Error('Pinkoi 改用 buildPinkoiXlsx,不再產 CSV');
   }
 }
 
@@ -392,20 +347,23 @@ export function downloadCSV(filename: string, csv: string): void {
 export const PLATFORM_META: Record<Platform, {
   label: string;
   filename: string;
+  format: 'csv' | 'xlsx';
   color: string;
   difficulty: '寬鬆' | '中等' | '嚴格';
   hint: string;
 }> = {
   pinkoi: {
     label: 'Pinkoi',
-    filename: 'pinkoi_products.csv',
+    filename: 'pinkoi_products.xlsx',
+    format: 'xlsx',
     color: 'bg-rose-600 hover:bg-rose-500',
     difficulty: '寬鬆',
-    hint: '欄位最寬鬆，建議先試這家驗證流程',
+    hint: '使用官方 v2.0 範本（.xlsx）；A1:BA9 保留不動，資料從 row 10 起',
   },
   shopee: {
     label: '蝦皮 Shopee',
     filename: 'shopee_products.csv',
+    format: 'csv',
     color: 'bg-orange-600 hover:bg-orange-500',
     difficulty: '中等',
     hint: '需自行填入分類；變體 ≤ 2 維',
@@ -413,6 +371,7 @@ export const PLATFORM_META: Record<Platform, {
   ruten: {
     label: '露天 Ruten',
     filename: 'ruten_products.csv',
+    format: 'csv',
     color: 'bg-yellow-600 hover:bg-yellow-500',
     difficulty: '中等',
     hint: '直購價格式；需指定出貨方式',
@@ -420,6 +379,7 @@ export const PLATFORM_META: Record<Platform, {
   yahoo: {
     label: 'Yahoo 超級商城',
     filename: 'yahoo_products.csv',
+    format: 'csv',
     color: 'bg-purple-600 hover:bg-purple-500',
     difficulty: '中等',
     hint: '需自行填入分類碼欄位',
@@ -427,6 +387,7 @@ export const PLATFORM_META: Record<Platform, {
   momo: {
     label: 'Momo 摩天商城',
     filename: 'momo_products.csv',
+    format: 'csv',
     color: 'bg-pink-600 hover:bg-pink-500',
     difficulty: '嚴格',
     hint: '必須填分類碼，建議下載官方範本對齊',

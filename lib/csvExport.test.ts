@@ -20,17 +20,17 @@ function makeProduct(overrides: Partial<Product>): Product {
 
 describe('buildCSV', () => {
   it('emits a UTF-8 BOM', () => {
-    const csv = buildCSV('pinkoi', [makeProduct({ id: 'p1' })]);
+    const csv = buildCSV('shopee', [makeProduct({ id: 'p1' })]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
   });
 
   it('quotes fields containing commas', () => {
-    const csv = buildCSV('pinkoi', [makeProduct({ name: 'Hello, World' })]);
+    const csv = buildCSV('shopee', [makeProduct({ name: 'Hello, World' })]);
     expect(csv).toContain('"Hello, World"');
   });
 
   it('escapes embedded double quotes', () => {
-    const csv = buildCSV('pinkoi', [makeProduct({ name: 'a "b" c' })]);
+    const csv = buildCSV('shopee', [makeProduct({ name: 'a "b" c' })]);
     expect(csv).toContain('"a ""b"" c"');
   });
 
@@ -50,11 +50,15 @@ describe('buildCSV', () => {
   });
 
   it('produces one data row per product', () => {
-    const csv = buildCSV('pinkoi', [
+    const csv = buildCSV('shopee', [
       makeProduct({ id: 'p1', name: 'A' }),
       makeProduct({ id: 'p2', name: 'B' }),
     ]);
     expect(csv.replace(/^﻿/, '').split('\r\n').length).toBe(3); // header + 2
+  });
+
+  it('throws for pinkoi (uses xlsx, not csv)', () => {
+    expect(() => buildCSV('pinkoi', [makeProduct({})])).toThrow(/xlsx|Pinkoi/i);
   });
 });
 

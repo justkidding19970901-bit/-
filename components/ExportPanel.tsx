@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import type { Product, Platform } from '../types';
 import { buildCSV, downloadCSV, PLATFORM_META, validateForPlatform } from '../lib/csvExport';
+import { buildPinkoiXlsxBatches, downloadXlsx } from '../lib/pinkoiXlsx';
+import { scanImageDims, type ScanProgress } from '../lib/imageDims';
 import { CsvPreview } from './CsvPreview';
+import { showAlert } from '../lib/dialog';
 
 interface Props {
   products: Product[];
@@ -18,9 +21,12 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
   const platforms = Object.keys(PLATFORM_META) as Platform[];
   const [auditPlatform, setAuditPlatform] = useState<Platform | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState<Platform | null>(null);
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
 
   const previewCsv = useMemo(
-    () => (previewPlatform ? buildCSV(previewPlatform, products) : ''),
+    () => (previewPlatform && PLATFORM_META[previewPlatform].format === 'csv'
+      ? buildCSV(previewPlatform, products)
+      : ''),
     [previewPlatform, products],
   );
 
@@ -29,12 +35,61 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
     return validateForPlatform(auditPlatform, products);
   }, [auditPlatform, products]);
 
-  const exportOne = (platform: Platform) => {
+  const exportOne = async (platform: Platform) => {
+    const meta = PLATFORM_META[platform];
+    if (meta.format === 'xlsx') {
+      try {
+        // 先掃所有合格 URL 的尺寸 (Pinkoi 要求單邊 ≥ 1000px,小於就濾掉)
+        const allUrls = new Set<string>();
+        for (const p of products) {
+          for (const u of (p.imageUrls || [])) {
+            const t = u.trim();
+            if (/^https?:\/\//i.test(t) && /\.(jpe?g|png)(\?|$|#)/i.test(t)) allUrls.add(t);
+          }
+        }
+        setScanProgress({ done: 0, total: allUrls.size, cached: 0 });
+        const dimCache = await scanImageDims(allUrls, p => setScanProgress(p));
+        setScanProgress(null);
+        const batches = await buildPinkoiXlsxBatches(products, dimCache);
+        if (batches.length === 1) {
+          downloadXlsx(batches[0].filename, batches[0].bytes);
+          return;
+        }
+        // 多批時打包成 zip,避開瀏覽器「多檔下載」攔阻
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+        for (const b of batches) zip.file(b.filename, b.bytes);
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(zipBlob);
+        const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+        a.download = `pinkoi_products_${batches.length}_files_${ts}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+        const sizes = batches.map(b => `${b.partIndex}/${b.totalParts}: ${b.count} 件 (${(b.bytes.length / 1024 / 1024).toFixed(1)} MB)`).join('\n');
+        await showAlert({
+          title: `Pinkoi 匯出分成 ${batches.length} 個檔案 (打包 zip)`,
+          body: `Pinkoi 後台單檔上限 10 MB,已自動切批並打包。請解壓縮後依序上傳:\n\n${sizes}`,
+        });
+      } catch (err) {
+        await showAlert({
+          title: `${meta.label} 匯出失敗`,
+          body: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        setScanProgress(null);
+      }
+      return;
+    }
     const csv = buildCSV(platform, products);
-    downloadCSV(PLATFORM_META[platform].filename, csv);
+    downloadCSV(meta.filename, csv);
   };
 
-  const exportAll = () => platforms.forEach(exportOne);
+  const exportAll = async () => {
+    for (const p of platforms) await exportOne(p);
+  };
 
   return (
     <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 rounded-lg p-4">
@@ -44,10 +99,10 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
       </div>
 
       <p className="text-xs text-slate-600 mb-3 leading-relaxed">
-        下載 CSV → 登入賣家後台 → 商品管理 → 批次匯入 → 上傳檔案。
+        下載檔案 → 登入賣家後台 → 商品管理 → 批次匯入 → 上傳檔案。
         <br />
         <span className="text-emerald-700">
-          ✓ 建議先試 <strong>Pinkoi</strong>（規則寬鬆），驗證流程通了再上嚴格的 Momo。
+          ✓ 建議先試 <strong>Pinkoi</strong>（用官方 .xlsx 範本，最不會被退件），驗證流程通了再上嚴格的 Momo。
         </span>
       </p>
 
@@ -66,10 +121,10 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
             </button>
             <button
               onClick={() => setPreviewPlatform(p)}
-              disabled={disabled}
-              title="預覽 CSV 內容"
-              aria-label={`預覽 ${PLATFORM_META[p].label} CSV`}
-              className="shrink-0 px-2 py-2 bg-white border border-slate-300 hover:bg-slate-100 disabled:bg-slate-100 disabled:cursor-not-allowed text-slate-700 text-xs rounded-md"
+              disabled={disabled || PLATFORM_META[p].format === 'xlsx'}
+              title={PLATFORM_META[p].format === 'xlsx' ? 'XLSX 格式不支援預覽，請下載後在 Excel 開啟' : '預覽 CSV 內容'}
+              aria-label={`預覽 ${PLATFORM_META[p].label}`}
+              className="shrink-0 px-2 py-2 bg-white border border-slate-300 hover:bg-slate-100 disabled:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300 text-slate-700 text-xs rounded-md"
             >
               👁
             </button>
@@ -92,6 +147,32 @@ export const ExportPanel: React.FC<Props> = ({ products }) => {
           onClose={() => setPreviewPlatform(null)}
         />
       )}
+
+      {scanProgress && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+             role="dialog" aria-modal="true" aria-label="掃描圖片尺寸進度">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5">
+            <h3 className="text-base font-bold text-slate-800 mb-1">📐 檢查圖片尺寸</h3>
+            <p className="text-xs text-slate-600 leading-relaxed mb-3">
+              Pinkoi 要求單邊 ≥ 1000px，正在逐張載入確認。第一次跑會慢一點，結果會快取，下次秒過。
+            </p>
+            <div className="text-sm text-slate-700 mb-2 flex justify-between">
+              <span>{scanProgress.done.toLocaleString()} / {scanProgress.total.toLocaleString()}</span>
+              <span className="text-slate-500">
+                {scanProgress.total > 0 ? ((scanProgress.done / scanProgress.total) * 100).toFixed(1) : '0'}%
+                {scanProgress.cached > 0 && ` · ${scanProgress.cached.toLocaleString()} 已快取`}
+              </span>
+            </div>
+            <div className="h-2 bg-slate-200 rounded overflow-hidden">
+              <div
+                className="h-full bg-indigo-500 transition-all"
+                style={{ width: `${scanProgress.total > 0 ? (scanProgress.done / scanProgress.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <button onClick={exportAll} disabled={disabled}
         className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-2 px-3 rounded-md text-sm transition">
