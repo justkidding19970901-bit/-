@@ -283,6 +283,22 @@ export function groupProductsForPinkoi(products: Product[]): ProductGroup[] {
     }
   }
 
+  // 用戶規則:任何被歸類為 1114 手機殼的 group,即使名稱沒明確 iPhone 後綴,
+  // 也要展開 18 變體(同一設計適用所有 iPhone 型號)。先找出這些 generic 群提升上來。
+  for (const [base, gen] of Array.from(genericByBase.entries())) {
+    const cat = classifyCategory(base, false);
+    if (!cat.includes(' - 1114')) continue;
+    const existing = iPhoneByBase.get(base);
+    if (existing) {
+      // 已有 iPhone 群覆蓋這個 base,丟掉 generic(iPhone 群已 18 變體完整)
+      genericByBase.delete(base);
+    } else {
+      // 從 generic 提升:沒有 iPhone 後綴匹配,所有 18 變體都用 rep 兜
+      iPhoneByBase.set(base, { rep: gen.rep, modelMap: new Map() });
+      genericByBase.delete(base);
+    }
+  }
+
   const out: ProductGroup[] = [];
   for (const [base, { rep, modelMap }] of iPhoneByBase) {
     const members: GroupMember[] = PINKOI_VARIANT_MODELS.map(model => ({
