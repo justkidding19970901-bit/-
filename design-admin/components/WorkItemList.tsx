@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { WorkStatus, WorkType } from '../types';
+import { WorkItem, WorkStatus, WorkType } from '../types';
 import {
   WORK_STATUS_LABEL,
   WORK_STATUS_ORDER,
@@ -14,6 +14,7 @@ import { WorkItemForm } from './WorkItemForm';
 export const WorkItemList: React.FC = () => {
   const { monthItems, setWorkItemStatus, deleteWorkItem, isManager } = useApp();
   const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState<WorkItem | null>(null);
   const [typeFilter, setTypeFilter] = useState<WorkType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<WorkStatus | 'all'>('all');
 
@@ -96,6 +97,14 @@ export const WorkItemList: React.FC = () => {
               ))}
             </select>
 
+            <button
+              onClick={() => setEditItem(w)}
+              className="text-slate-300 hover:text-indigo-500 text-sm px-1"
+              title="編輯"
+            >
+              ✎
+            </button>
+
             {isManager && (
               <button
                 onClick={() => deleteWorkItem(w.id)}
@@ -110,6 +119,9 @@ export const WorkItemList: React.FC = () => {
       </div>
 
       {showForm && <WorkItemForm onClose={() => setShowForm(false)} />}
+      {editItem && (
+        <WorkItemForm editItem={editItem} onClose={() => setEditItem(null)} />
+      )}
     </div>
   );
 };

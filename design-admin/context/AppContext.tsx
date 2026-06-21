@@ -4,7 +4,7 @@ import * as store from '../lib/storage';
 import { currentMonth, dateMonth } from '../lib/period';
 import { uid } from '../lib/id';
 
-interface MonthStats {
+export interface MonthStats {
   phoneCaseDone: number;
   productImageDone: number;
   ecommerceImageDone: number;
@@ -38,6 +38,7 @@ interface AppContextValue {
   monthItems: WorkItem[];
   monthShifts: Shift[];
   stats: MonthStats;
+  statsForMonth: (month: string) => MonthStats;
 
   // 操作 — 產出
   createWorkItem: (data: Pick<WorkItem, 'type' | 'title'> & Partial<WorkItem>) => void;
@@ -222,25 +223,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [shifts, selectedMonth]
   );
 
-  const stats: MonthStats = useMemo(() => {
-    const doneOf = (type: WorkType) =>
-      monthItems.filter((w) => w.type === type && w.status === DONE).length;
-    const attended = monthShifts.filter((s) => s.attended);
-    return {
-      phoneCaseDone: doneOf('phone_case'),
-      productImageDone: doneOf('product_image'),
-      ecommerceImageDone: doneOf('ecommerce_image'),
-      commissionDone: doneOf('commission'),
-      commissionTotal: monthItems
-        .filter((w) => w.type === 'commission')
-        .reduce((sum, w) => sum + (w.commissionAmount ?? 0), 0),
-      shiftsPlanned: monthShifts.length,
-      shiftsAttended: attended.length,
-      marketHours: attended.reduce((sum, s) => sum + (s.hours ?? 0), 0),
-      draftCount: monthItems.filter((w) => w.status === 'draft').length,
-      target: store.targetForMonth(kpiTargets, selectedMonth),
-    };
-  }, [monthItems, monthShifts, kpiTargets, selectedMonth]);
+  const statsForMonth = useCallback(
+    (month: string): MonthStats => {
+      const items = workItems.filter((w) => w.month === month);
+      const sh = shifts.filter((s) => dateMonth(s.date) === month);
+      const doneOf = (type: WorkType) =>
+        items.filter((w) => w.type === type && w.status === DONE).length;
+      const attended = sh.filter((s) => s.attended);
+      return {
+        phoneCaseDone: doneOf('phone_case'),
+        productImageDone: doneOf('product_image'),
+        ecommerceImageDone: doneOf('ecommerce_image'),
+        commissionDone: doneOf('commission'),
+        commissionTotal: items
+          .filter((w) => w.type === 'commission')
+          .reduce((sum, w) => sum + (w.commissionAmount ?? 0), 0),
+        shiftsPlanned: sh.length,
+        shiftsAttended: attended.length,
+        marketHours: attended.reduce((sum, s) => sum + (s.hours ?? 0), 0),
+        draftCount: items.filter((w) => w.status === 'draft').length,
+        target: store.targetForMonth(kpiTargets, month),
+      };
+    },
+    [workItems, shifts, kpiTargets]
+  );
+
+  const stats: MonthStats = useMemo(
+    () => statsForMonth(selectedMonth),
+    [statsForMonth, selectedMonth]
+  );
 
   const value: AppContextValue = {
     currentUser,
@@ -256,6 +267,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     monthItems,
     monthShifts,
     stats,
+    statsForMonth,
     createWorkItem,
     updateWorkItem,
     setWorkItemStatus,

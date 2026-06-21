@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { KpiCard } from './KpiCard';
+import { MonthlyTrend } from './MonthlyTrend';
 import { monthLabel } from '../lib/period';
 
 export const Dashboard: React.FC = () => {
@@ -98,6 +99,12 @@ export const Dashboard: React.FC = () => {
             </>
           )}
         </div>
+      </section>
+
+      {/* 跨月趨勢 */}
+      <section>
+        <h2 className="text-sm font-semibold text-slate-500 mb-3">跨月趨勢</h2>
+        <MonthlyTrend />
       </section>
     </div>
   );

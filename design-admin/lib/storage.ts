@@ -1,7 +1,7 @@
 // 單一資料存取層：localStorage 讀寫 + 種子資料 + 固定設定
 // 未來要換成雲端後端，只需替換此檔的讀寫實作。
 import { ChecklistItem, KpiTarget, ListingSpec, Member, Session, Shift, WorkItem } from '../types';
-import { currentMonth, weekendsOfMonth } from './period';
+import { currentMonth, shiftMonth, weekendsOfMonth } from './period';
 import { uid } from './id';
 
 const KEY = {
@@ -116,6 +116,35 @@ export function seedIfEmpty(): void {
     note: i < 2 ? '夜市擺攤' : '',
   }));
   saveShifts(shifts);
+
+  // 前幾個月的歷史資料（給跨月趨勢用），達成數刻意不同以呈現變化
+  const history: WorkItem[] = [];
+  const historyShifts: Shift[] = [];
+  const pastDoneByOffset = [4, 3, 2, 4, 3]; // 1~5 個月前的手機殼完成數
+  pastDoneByOffset.forEach((doneCount, idx) => {
+    const pastMonth = shiftMonth(month, -(idx + 1));
+    for (let i = 0; i < doneCount; i++) {
+      history.push({
+        id: uid('w_'),
+        month: pastMonth,
+        type: 'phone_case',
+        title: `${pastMonth} 手機殼 #${i + 1}`,
+        status: 'done',
+        createdAt: now,
+        updatedAt: now,
+        doneAt: now,
+      });
+    }
+    // 夜市出勤次數（與達成數呈反向，凸顯取捨）
+    const attendCount = 6 - doneCount;
+    weekendsOfMonth(pastMonth)
+      .slice(0, attendCount)
+      .forEach((date) =>
+        historyShifts.push({ id: uid('s_'), date, attended: true, hours: 8, note: '夜市擺攤' })
+      );
+  });
+  saveWorkItems([...items, ...history]);
+  saveShifts([...shifts, ...historyShifts]);
 
   saveKpiTargets([{ month, ...DEFAULT_TARGET }]);
 

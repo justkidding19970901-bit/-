@@ -1,35 +1,52 @@
 import React, { useState } from 'react';
-import { WorkType } from '../types';
+import { WorkItem, WorkType } from '../types';
 import { useApp } from '../context/AppContext';
 import { WORK_TYPE_LABEL, WORK_TYPE_ORDER } from '../lib/labels';
 
 interface Props {
   onClose: () => void;
+  editItem?: WorkItem; // 有值 → 編輯模式
 }
 
-export const WorkItemForm: React.FC<Props> = ({ onClose }) => {
-  const { createWorkItem } = useApp();
-  const [type, setType] = useState<WorkType>('phone_case');
-  const [title, setTitle] = useState('');
-  const [commissionAmount, setCommissionAmount] = useState('');
-  const [note, setNote] = useState('');
+export const WorkItemForm: React.FC<Props> = ({ onClose, editItem }) => {
+  const { createWorkItem, updateWorkItem } = useApp();
+  const isEdit = !!editItem;
+
+  const [type, setType] = useState<WorkType>(editItem?.type ?? 'phone_case');
+  const [title, setTitle] = useState(editItem?.title ?? '');
+  const [commissionAmount, setCommissionAmount] = useState(
+    editItem?.commissionAmount != null ? String(editItem.commissionAmount) : ''
+  );
+  const [note, setNote] = useState(editItem?.note ?? '');
 
   const submit = () => {
     if (!title.trim()) return;
-    createWorkItem({
-      type,
-      title: title.trim(),
-      note: note.trim() || undefined,
-      commissionAmount:
-        type === 'commission' && commissionAmount ? Number(commissionAmount) : undefined,
-    });
+    const amount =
+      type === 'commission' && commissionAmount ? Number(commissionAmount) : undefined;
+    if (isEdit) {
+      updateWorkItem(editItem!.id, {
+        type,
+        title: title.trim(),
+        note: note.trim() || undefined,
+        commissionAmount: amount,
+      });
+    } else {
+      createWorkItem({
+        type,
+        title: title.trim(),
+        note: note.trim() || undefined,
+        commissionAmount: amount,
+      });
+    }
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <div className="text-lg font-semibold text-slate-800 mb-4">新增產出</div>
+        <div className="text-lg font-semibold text-slate-800 mb-4">
+          {isEdit ? '編輯產出' : '新增產出'}
+        </div>
 
         <label className="block text-sm font-medium text-slate-600 mb-1">類型</label>
         <select
@@ -83,7 +100,7 @@ export const WorkItemForm: React.FC<Props> = ({ onClose }) => {
             onClick={submit}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
           >
-            新增
+            {isEdit ? '儲存' : '新增'}
           </button>
         </div>
       </div>
