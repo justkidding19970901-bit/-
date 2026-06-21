@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CAREER_LADDER, ALL_MILESTONE_IDS } from '../lib/career';
+import { useToast } from '../context/ToastContext';
+
+const ENCOURAGE = ['推進了一步 👏', '很好，繼續保持！', '又解鎖一項技能 ✨', '穩穩前進中 💪'];
 
 export const CareerMap: React.FC = () => {
   const {
@@ -12,8 +15,25 @@ export const CareerMap: React.FC = () => {
     removeGoal,
   } = useApp();
 
+  const { success, celebrate } = useToast();
   const [goalTitle, setGoalTitle] = useState('');
   const [goalDate, setGoalDate] = useState('');
+
+  // 勾選里程碑：完成時給鼓勵，若該階段因此全完成則慶祝
+  const handleMilestone = (stageIdx: number, milestoneId: string) => {
+    const wasDone = !!careerProgress[milestoneId];
+    toggleMilestone(milestoneId);
+    if (wasDone) return; // 取消勾選不提示
+    const stage = CAREER_LADDER[stageIdx];
+    const doneAfter = stage.milestones.filter(
+      (m) => m.id === milestoneId || careerProgress[m.id]
+    ).length;
+    if (doneAfter === stage.milestones.length) {
+      celebrate(`完成「${stage.title}」階段，恭喜晉級！`);
+    } else {
+      success(ENCOURAGE[Math.floor(Math.random() * ENCOURAGE.length)]);
+    }
+  };
 
   // 整體進度
   const doneCount = ALL_MILESTONE_IDS.filter((id) => careerProgress[id]).length;
@@ -30,14 +50,20 @@ export const CareerMap: React.FC = () => {
   const submitGoal = () => {
     if (!goalTitle.trim()) return;
     addGoal(goalTitle.trim(), goalDate || undefined);
+    success('目標已加入，朝它前進吧！');
     setGoalTitle('');
     setGoalDate('');
+  };
+
+  const handleGoalToggle = (id: string, done: boolean) => {
+    toggleGoal(id);
+    if (!done) celebrate('達成一個目標，太強了！');
   };
 
   return (
     <div className="max-w-3xl space-y-6">
       {/* 總覽 */}
-      <div className="bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-xl p-5">
+      <div className="bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-2xl shadow-sm p-5">
         <div className="text-sm opacity-90">職涯方向 · 資深專業設計師</div>
         <div className="mt-1 flex items-baseline gap-2">
           <span className="text-3xl font-bold">{pct}%</span>
@@ -48,7 +74,10 @@ export const CareerMap: React.FC = () => {
           </span>
         </div>
         <div className="mt-3 h-2 bg-white/25 rounded-full overflow-hidden">
-          <div className="h-full bg-white rounded-full" style={{ width: `${pct}%` }} />
+          <div
+            className="h-full bg-white rounded-full transition-[width] duration-700 ease-out"
+            style={{ width: `${pct}%` }}
+          />
         </div>
       </div>
 
@@ -62,8 +91,8 @@ export const CareerMap: React.FC = () => {
           return (
             <div
               key={stage.id}
-              className={`bg-white rounded-xl border p-5 ${
-                isCurrent ? 'border-indigo-400 ring-1 ring-indigo-200' : 'border-slate-200'
+              className={`bg-white rounded-2xl shadow-sm border p-5 transition-soft ${
+                isCurrent ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-100'
               }`}
             >
               <div className="flex items-center gap-3 mb-3">
@@ -105,7 +134,7 @@ export const CareerMap: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={!!careerProgress[m.id]}
-                      onChange={() => toggleMilestone(m.id)}
+                      onChange={() => handleMilestone(idx, m.id)}
                       className="mt-0.5 w-4 h-4 accent-indigo-600"
                     />
                     <span
@@ -126,7 +155,7 @@ export const CareerMap: React.FC = () => {
       </div>
 
       {/* 自訂目標 */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <div className="font-semibold text-slate-800 mb-1">我的自訂目標</div>
         <div className="text-xs text-slate-400 mb-3">
           階梯之外、想額外達成的個人目標（例如：學會 3D 建模、開個人作品集網站）
@@ -163,7 +192,7 @@ export const CareerMap: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={g.done}
-                  onChange={() => toggleGoal(g.id)}
+                  onChange={() => handleGoalToggle(g.id, g.done)}
                   className="w-4 h-4 accent-indigo-600"
                 />
                 <span

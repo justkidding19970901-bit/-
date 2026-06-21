@@ -22,9 +22,10 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-slate-50 to-violet-100 p-4">
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 animate-fade-in">
         <div className="text-center mb-6">
+          <div className="text-3xl mb-1">🎨</div>
           <div className="text-2xl font-bold text-slate-800">Designer Studio</div>
           <div className="text-sm text-slate-400 mt-1">MonnaCase 墨盾 · 設計部</div>
         </div>
@@ -38,10 +39,10 @@ export const Login: React.FC = () => {
                 setSelected(m.id);
                 setError('');
               }}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border ${
                 selected === m.id
-                  ? 'border-indigo-500 bg-indigo-50'
-                  : 'border-slate-200 hover:border-slate-300'
+                  ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-100'
+                  : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
               }`}
             >
               <span className="font-medium text-slate-700">{m.name}</span>
@@ -74,7 +75,7 @@ export const Login: React.FC = () => {
 
         <button
           onClick={handleLogin}
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-2xl shadow-sm hover:shadow active:scale-[0.98]"
         >
           登入
         </button>

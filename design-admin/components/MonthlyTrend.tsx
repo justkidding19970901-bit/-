@@ -28,7 +28,7 @@ export const MonthlyTrend: React.FC = () => {
   });
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
       <div className="text-sm font-semibold text-slate-500 mb-1">
         近 {MONTHS_BACK} 個月手機殼 KPI 達成率
       </div>

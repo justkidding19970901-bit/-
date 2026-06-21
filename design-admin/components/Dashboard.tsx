@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { KpiCard } from './KpiCard';
 import { MonthlyTrend } from './MonthlyTrend';
+import { Greeting } from './Greeting';
 import { monthLabel } from '../lib/period';
 
 export const Dashboard: React.FC = () => {
@@ -14,6 +15,8 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <Greeting />
+
       {/* KPI 儀表 */}
       <section>
         <h2 className="text-sm font-semibold text-slate-500 mb-3">
@@ -69,7 +72,7 @@ export const Dashboard: React.FC = () => {
       <section>
         <h2 className="text-sm font-semibold text-slate-500 mb-3">夜市工時 vs KPI 取捨</h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="text-sm text-slate-500">夜市出勤</div>
             <div className="mt-2 text-3xl font-bold text-slate-800">
               {stats.shiftsAttended}
@@ -78,7 +81,7 @@ export const Dashboard: React.FC = () => {
             <div className="mt-2 text-xs text-slate-400">已出勤 {stats.marketHours} 小時</div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="text-sm text-slate-500">估算損失設計工時</div>
             <div className="mt-2 text-3xl font-bold text-amber-600">
               ≈ {lostDays} <span className="text-lg text-slate-400">工作天</span>
@@ -86,7 +89,7 @@ export const Dashboard: React.FC = () => {
             <div className="mt-2 text-xs text-slate-400">以 8 小時/工作天估算</div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="text-sm text-slate-500">產能緩衝庫（備稿中）</div>
             <div className="mt-2 text-3xl font-bold text-slate-800">
               {stats.draftCount} <span className="text-lg text-slate-400">款</span>

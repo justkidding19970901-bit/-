@@ -1,9 +1,11 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 import { dayLabel, weekendsOfMonth } from '../lib/period';
 
 export const ShiftSchedule: React.FC = () => {
   const { selectedMonth, monthShifts, addShift, toggleAttended, removeShift } = useApp();
+  const { success } = useToast();
 
   const weekends = weekendsOfMonth(selectedMonth);
   const shiftByDate = new Map(monthShifts.map((s) => [s.date, s]));
@@ -14,7 +16,7 @@ export const ShiftSchedule: React.FC = () => {
         本月所有週末（六、日）夜市可排班日。標記「已出勤」後會計入 Dashboard 的夜市工時與損失工時估算。
       </p>
 
-      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-100">
         {weekends.map((date) => {
           const shift = shiftByDate.get(date);
           return (
@@ -27,7 +29,10 @@ export const ShiftSchedule: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={shift.attended}
-                      onChange={() => toggleAttended(shift.id)}
+                      onChange={() => {
+                        toggleAttended(shift.id);
+                        if (!shift.attended) success('辛苦了，已記錄出勤');
+                      }}
                       className="w-4 h-4 accent-indigo-600"
                     />
                     已出勤
@@ -47,10 +52,13 @@ export const ShiftSchedule: React.FC = () => {
                   <span className="text-sm text-slate-300">未排班</span>
                   <div className="flex-1" />
                   <button
-                    onClick={() => addShift(date, 8, '夜市擺攤')}
-                    className="text-xs px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg"
+                    onClick={() => {
+                      addShift(date, 8, '夜市擺攤');
+                      success('已排入夜市班表');
+                    }}
+                    className="text-xs px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg active:scale-95"
                   >
-                    + 排夜市（8 小時）
+                    ＋ 排夜市（8 小時）
                   </button>
                 </>
               )}

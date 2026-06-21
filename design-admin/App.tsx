@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { ToastProvider } from './context/ToastContext';
 import { Login } from './components/Login';
 import { Layout, PageKey } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -47,15 +48,19 @@ const Shell: React.FC = () => {
 
   return (
     <Layout active={activePage} onNavigate={setPage}>
-      {renderPage()}
+      <div key={activePage} className="animate-fade-in">
+        {renderPage()}
+      </div>
     </Layout>
   );
 };
 
 const App: React.FC = () => (
-  <AppProvider>
-    <Shell />
-  </AppProvider>
+  <ToastProvider>
+    <AppProvider>
+      <Shell />
+    </AppProvider>
+  </ToastProvider>
 );
 
 export default App;

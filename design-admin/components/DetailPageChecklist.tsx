@@ -43,7 +43,7 @@ export const DetailPageChecklist: React.FC = () => {
       </p>
 
       {targets.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center text-sm text-slate-400">
           本月尚無「{WORK_TYPE_LABEL.ecommerce_image}」產出。請先到「產出清單」新增。
         </div>
       ) : (
@@ -60,7 +60,7 @@ export const DetailPageChecklist: React.FC = () => {
             ))}
           </select>
 
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div
               className={`px-4 py-2.5 text-sm font-medium ${
                 allDone ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-600'

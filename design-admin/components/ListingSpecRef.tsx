@@ -9,7 +9,7 @@ export const ListingSpecRef: React.FC = () => {
         預設一次匯出，避免每款手動另存改尺寸。數值為預設，請設計師依實際校正。
       </p>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-500 text-left">

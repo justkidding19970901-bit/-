@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 import { monthLabel } from '../lib/period';
 
 export const KpiSettings: React.FC = () => {
   const { selectedMonth, stats, setKpiTarget } = useApp();
+  const { success } = useToast();
   const t = stats.target;
 
   const [phoneCaseTarget, setPhone] = useState(t.phoneCaseTarget);
@@ -22,6 +24,7 @@ export const KpiSettings: React.FC = () => {
       ecommerceImageTarget: Number(ecommerceImageTarget),
     });
     setSaved(true);
+    success(`${monthLabel(selectedMonth)} KPI 目標已更新`);
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -50,7 +53,7 @@ export const KpiSettings: React.FC = () => {
         設定 {monthLabel(selectedMonth)} 的 KPI 目標。夜市旺季可調降手機殼目標，讓 KPI 與工時對齊。
       </p>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
         <Field label="獨家手機殼（款/月）" value={phoneCaseTarget} onChange={setPhone} hint="基準值 4" />
         <Field label="抽成圖像（款/月）" value={commissionTarget} onChange={setCommission} hint="獎勵目標，預設 1" />
         <Field label="商品圖合成（張/月）" value={productImageTarget} onChange={setProduct} />

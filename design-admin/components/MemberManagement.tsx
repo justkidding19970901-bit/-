@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 import { Role } from '../types';
 
 export const MemberManagement: React.FC = () => {
   const { members, addMember } = useApp();
+  const { success } = useToast();
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('designer');
 
   const submit = () => {
     if (!name.trim()) return;
     addMember(name.trim(), role);
+    success(`已新增成員：${name.trim()}`);
     setName('');
     setRole('designer');
   };
@@ -21,7 +24,7 @@ export const MemberManagement: React.FC = () => {
       </p>
 
       {/* 新增 */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex flex-wrap items-end gap-3">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-4 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[160px]">
           <label className="block text-sm font-medium text-slate-600 mb-1">姓名</label>
           <input
@@ -50,7 +53,7 @@ export const MemberManagement: React.FC = () => {
       </div>
 
       {/* 清單 */}
-      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-100">
         {members.map((m) => (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3">
             <span className="font-medium text-slate-700">{m.name}</span>

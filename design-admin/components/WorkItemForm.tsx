@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { WorkItem, WorkType } from '../types';
 import { useApp } from '../context/AppContext';
 import { AMOUNT_LABEL, AMOUNT_TYPES, WORK_TYPE_LABEL, WORK_TYPE_ORDER } from '../lib/labels';
+import { useToast } from '../context/ToastContext';
 
 interface Props {
   onClose: () => void;
@@ -10,6 +11,7 @@ interface Props {
 
 export const WorkItemForm: React.FC<Props> = ({ onClose, editItem }) => {
   const { createWorkItem, updateWorkItem } = useApp();
+  const { success } = useToast();
   const isEdit = !!editItem;
 
   const [type, setType] = useState<WorkType>(editItem?.type ?? 'phone_case');
@@ -31,6 +33,7 @@ export const WorkItemForm: React.FC<Props> = ({ onClose, editItem }) => {
         note: note.trim() || undefined,
         commissionAmount: amount,
       });
+      success('已更新');
     } else {
       createWorkItem({
         type,
@@ -38,13 +41,14 @@ export const WorkItemForm: React.FC<Props> = ({ onClose, editItem }) => {
         note: note.trim() || undefined,
         commissionAmount: amount,
       });
+      success(`已新增：${title.trim()}`);
     }
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
         <div className="text-lg font-semibold text-slate-800 mb-4">
           {isEdit ? '編輯產出' : '新增產出'}
         </div>

@@ -53,10 +53,10 @@ export const Layout: React.FC<Props> = ({ active, onNavigate, children }) => {
             <button
               key={n.key}
               onClick={() => onNavigate(n.key)}
-              className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
+              className={`w-[calc(100%-1rem)] mx-2 my-0.5 rounded-xl flex items-center gap-3 px-3.5 py-2.5 text-sm ${
                 active === n.key
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-300 hover:bg-slate-800/70'
               }`}
             >
               <span>{n.icon}</span>
@@ -86,7 +86,7 @@ export const Layout: React.FC<Props> = ({ active, onNavigate, children }) => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}
-              className="w-8 h-8 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500"
+              className="w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-50 text-slate-500 active:scale-90"
             >
               ‹
             </button>
@@ -95,7 +95,7 @@ export const Layout: React.FC<Props> = ({ active, onNavigate, children }) => {
             </div>
             <button
               onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}
-              className="w-8 h-8 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500"
+              className="w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-50 text-slate-500 active:scale-90"
             >
               ›
             </button>

@@ -22,7 +22,7 @@ export const KpiCard: React.FC<Props> = ({
   const reached = hasTarget && done >= target!;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-soft">
       <div className="flex items-baseline justify-between">
         <span className="text-sm text-slate-500">{label}</span>
         {hasTarget && (
@@ -45,7 +45,7 @@ export const KpiCard: React.FC<Props> = ({
       {hasTarget && (
         <div className="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full ${reached ? 'bg-emerald-500' : accent}`}
+            className={`h-full rounded-full transition-[width] duration-700 ease-out ${reached ? 'bg-emerald-500' : accent}`}
             style={{ width: `${pct}%` }}
           />
         </div>
