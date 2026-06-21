@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { WorkItem, WorkType } from '../types';
 import { useApp } from '../context/AppContext';
-import { WORK_TYPE_LABEL, WORK_TYPE_ORDER } from '../lib/labels';
+import { AMOUNT_LABEL, AMOUNT_TYPES, WORK_TYPE_LABEL, WORK_TYPE_ORDER } from '../lib/labels';
 
 interface Props {
   onClose: () => void;
@@ -19,10 +19,11 @@ export const WorkItemForm: React.FC<Props> = ({ onClose, editItem }) => {
   );
   const [note, setNote] = useState(editItem?.note ?? '');
 
+  const hasAmount = AMOUNT_TYPES.includes(type);
+
   const submit = () => {
     if (!title.trim()) return;
-    const amount =
-      type === 'commission' && commissionAmount ? Number(commissionAmount) : undefined;
+    const amount = hasAmount && commissionAmount ? Number(commissionAmount) : undefined;
     if (isEdit) {
       updateWorkItem(editItem!.id, {
         type,
@@ -69,9 +70,11 @@ export const WorkItemForm: React.FC<Props> = ({ onClose, editItem }) => {
           className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-4"
         />
 
-        {type === 'commission' && (
+        {hasAmount && (
           <>
-            <label className="block text-sm font-medium text-slate-600 mb-1">抽成金額（NT$）</label>
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              {AMOUNT_LABEL[type]}
+            </label>
             <input
               type="number"
               value={commissionAmount}

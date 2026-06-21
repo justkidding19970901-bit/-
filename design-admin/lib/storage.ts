@@ -103,6 +103,7 @@ export function seedIfEmpty(): void {
     { id: uid('w_'), month, type: 'product_image', title: '眾川赴海 商品情境圖', status: 'done', createdAt: now, updatedAt: now, doneAt: now },
     { id: uid('w_'), month, type: 'ecommerce_image', title: '眾川赴海 詳情頁', status: 'review', createdAt: now, updatedAt: now },
     { id: uid('w_'), month, type: 'commission', title: '聯名刺青款 抽成圖', status: 'in_progress', commissionAmount: 0, createdAt: now, updatedAt: now },
+    { id: uid('w_'), month, type: 'custom_case', title: '客戶客製・寵物照手機殼', status: 'in_progress', commissionAmount: 1280, note: '客戶委託', createdAt: now, updatedAt: now },
   ];
   saveWorkItems(items);
 

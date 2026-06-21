@@ -52,6 +52,19 @@ export const Dashboard: React.FC = () => {
         </div>
       </section>
 
+      {/* 接案 / 客製化（偶爾，不列入固定 KPI） */}
+      <section>
+        <h2 className="text-sm font-semibold text-slate-500 mb-3">接案 / 客製化（偶爾）</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <KpiCard
+            label="客製化手機殼"
+            done={stats.customCaseCount}
+            unit="件"
+            subtitle={`本月客製訂單金額：NT$ ${stats.customCaseAmount.toLocaleString()}`}
+          />
+        </div>
+      </section>
+
       {/* 夜市工時 vs KPI 取捨 */}
       <section>
         <h2 className="text-sm font-semibold text-slate-500 mb-3">夜市工時 vs KPI 取捨</h2>

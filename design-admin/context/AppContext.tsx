@@ -6,6 +6,8 @@ import { uid } from '../lib/id';
 
 export interface MonthStats {
   phoneCaseDone: number;
+  customCaseCount: number;  // 客製化手機殼（接案）件數
+  customCaseAmount: number; // 客製訂單總金額
   productImageDone: number;
   ecommerceImageDone: number;
   commissionDone: number;
@@ -230,8 +232,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const doneOf = (type: WorkType) =>
         items.filter((w) => w.type === type && w.status === DONE).length;
       const attended = sh.filter((s) => s.attended);
+      const customCases = items.filter((w) => w.type === 'custom_case');
       return {
         phoneCaseDone: doneOf('phone_case'),
+        customCaseCount: customCases.length,
+        customCaseAmount: customCases.reduce((sum, w) => sum + (w.commissionAmount ?? 0), 0),
         productImageDone: doneOf('product_image'),
         ecommerceImageDone: doneOf('ecommerce_image'),
         commissionDone: doneOf('commission'),

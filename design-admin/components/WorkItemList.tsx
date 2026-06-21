@@ -75,8 +75,10 @@ export const WorkItemList: React.FC = () => {
             </span>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-slate-700 truncate">{w.title}</div>
-              {w.type === 'commission' && w.commissionAmount ? (
-                <div className="text-xs text-yellow-700">抽成 NT$ {w.commissionAmount.toLocaleString()}</div>
+              {w.commissionAmount ? (
+                <div className="text-xs text-yellow-700">
+                  {w.type === 'custom_case' ? '客製金額' : '抽成'} NT$ {w.commissionAmount.toLocaleString()}
+                </div>
               ) : null}
               {w.note && <div className="text-xs text-slate-400 truncate">{w.note}</div>}
             </div>

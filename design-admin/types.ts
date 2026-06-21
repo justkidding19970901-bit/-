@@ -4,6 +4,7 @@ export type Role = 'manager' | 'designer';
 
 export type WorkType =
   | 'phone_case'      // 獨家手機殼
+  | 'custom_case'     // 客製化手機殼（偶爾接案）
   | 'product_image'   // 商品圖合成
   | 'ecommerce_image' // 電商上架圖/詳情頁
   | 'commission';     // 抽成圖像（獎勵）
@@ -27,7 +28,7 @@ export interface WorkItem {
   type: WorkType;
   title: string;
   status: WorkStatus;
-  commissionAmount?: number; // 僅 commission 類型：抽成金額
+  commissionAmount?: number; // 金額：commission 類型為抽成金額、custom_case 為客製訂單金額
   note?: string;
   createdAt: string;
   updatedAt: string;
