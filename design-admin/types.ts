@@ -68,3 +68,29 @@ export interface ChecklistItem {
   id: string;
   label: string;
 }
+
+// 職涯地圖 —— 預設階梯
+export interface CareerMilestone {
+  id: string;
+  label: string;
+  detail?: string;
+}
+export interface CareerStage {
+  id: string;
+  title: string;
+  subtitle?: string;
+  milestones: CareerMilestone[];
+}
+
+// 職涯地圖 —— 自訂目標
+export interface CustomGoal {
+  id: string;
+  title: string;
+  targetDate?: string; // 'YYYY-MM-DD'
+  done: boolean;
+  note?: string;
+  createdAt: string;
+}
+
+// milestoneId -> 是否完成
+export type CareerProgress = Record<string, boolean>;

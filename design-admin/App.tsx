@@ -7,6 +7,7 @@ import { WorkItemList } from './components/WorkItemList';
 import { ShiftSchedule } from './components/ShiftSchedule';
 import { DetailPageChecklist } from './components/DetailPageChecklist';
 import { ListingSpecRef } from './components/ListingSpecRef';
+import { CareerMap } from './components/CareerMap';
 import { KpiSettings } from './components/KpiSettings';
 import { MemberManagement } from './components/MemberManagement';
 
@@ -32,6 +33,8 @@ const Shell: React.FC = () => {
         return <DetailPageChecklist />;
       case 'specs':
         return <ListingSpecRef />;
+      case 'career':
+        return <CareerMap />;
       case 'kpi':
         // 以月份當 key，切月時重置表單初始值
         return <KpiSettings key={selectedMonth} />;

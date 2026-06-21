@@ -25,8 +25,8 @@ export const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-6">
-          <div className="text-2xl font-bold text-slate-800">設計部庶務控管</div>
-          <div className="text-sm text-slate-400 mt-1">MonnaCase 墨盾</div>
+          <div className="text-2xl font-bold text-slate-800">Designer Studio</div>
+          <div className="text-sm text-slate-400 mt-1">MonnaCase 墨盾 · 設計部</div>
         </div>
 
         <label className="block text-sm font-medium text-slate-600 mb-2">選擇身分登入</label>

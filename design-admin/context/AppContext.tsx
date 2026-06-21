@@ -1,5 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { KpiTarget, Member, Shift, WorkItem, WorkStatus, WorkType } from '../types';
+import {
+  CareerProgress,
+  CustomGoal,
+  KpiTarget,
+  Member,
+  Shift,
+  WorkItem,
+  WorkStatus,
+  WorkType,
+} from '../types';
 import * as store from '../lib/storage';
 import { currentMonth, dateMonth } from '../lib/period';
 import { uid } from '../lib/id';
@@ -58,6 +67,14 @@ interface AppContextValue {
 
   // 操作 — 成員（主管）
   addMember: (name: string, role: Member['role']) => void;
+
+  // 職涯地圖
+  careerProgress: CareerProgress;
+  toggleMilestone: (id: string) => void;
+  customGoals: CustomGoal[];
+  addGoal: (title: string, targetDate?: string, note?: string) => void;
+  toggleGoal: (id: string) => void;
+  removeGoal: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -77,6 +94,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [kpiTargets, setKpiTargets] = useState<KpiTarget[]>([]);
   const [currentUser, setCurrentUser] = useState<Member | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth());
+  const [careerProgress, setCareerProgress] = useState<CareerProgress>({});
+  const [customGoals, setCustomGoals] = useState<CustomGoal[]>([]);
 
   // 初始化：種子 + 載入
   useEffect(() => {
@@ -86,6 +105,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setWorkItems(store.getWorkItems());
     setShifts(store.getShifts());
     setKpiTargets(store.getKpiTargets());
+    setCareerProgress(store.getCareerProgress());
+    setCustomGoals(store.getCustomGoals());
     const session = store.getSession();
     if (session) {
       const user = m.find((x) => x.id === session.memberId) ?? null;
@@ -215,6 +236,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [members]
   );
 
+  // ---- 職涯地圖 ----
+  const toggleMilestone = useCallback(
+    (id: string) => {
+      setCareerProgress((prev) => {
+        const next = { ...prev, [id]: !prev[id] };
+        store.saveCareerProgress(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const persistGoals = useCallback((next: CustomGoal[]) => {
+    setCustomGoals(next);
+    store.saveCustomGoals(next);
+  }, []);
+
+  const addGoal = useCallback(
+    (title: string, targetDate?: string, note?: string) => {
+      const goal: CustomGoal = {
+        id: uid('g_'),
+        title,
+        targetDate,
+        note,
+        done: false,
+        createdAt: new Date().toISOString(),
+      };
+      persistGoals([...customGoals, goal]);
+    },
+    [customGoals, persistGoals]
+  );
+
+  const toggleGoal = useCallback(
+    (id: string) =>
+      persistGoals(customGoals.map((g) => (g.id === id ? { ...g, done: !g.done } : g))),
+    [customGoals, persistGoals]
+  );
+
+  const removeGoal = useCallback(
+    (id: string) => persistGoals(customGoals.filter((g) => g.id !== id)),
+    [customGoals, persistGoals]
+  );
+
   // ---- 衍生統計 ----
   const monthItems = useMemo(
     () => workItems.filter((w) => w.month === selectedMonth),
@@ -282,6 +346,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     removeShift,
     setKpiTarget,
     addMember,
+    careerProgress,
+    toggleMilestone,
+    customGoals,
+    addGoal,
+    toggleGoal,
+    removeGoal,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

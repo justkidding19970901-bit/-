@@ -1,6 +1,16 @@
 // 單一資料存取層：localStorage 讀寫 + 種子資料 + 固定設定
 // 未來要換成雲端後端，只需替換此檔的讀寫實作。
-import { ChecklistItem, KpiTarget, ListingSpec, Member, Session, Shift, WorkItem } from '../types';
+import {
+  CareerProgress,
+  ChecklistItem,
+  CustomGoal,
+  KpiTarget,
+  ListingSpec,
+  Member,
+  Session,
+  Shift,
+  WorkItem,
+} from '../types';
 import { currentMonth, shiftMonth, weekendsOfMonth } from './period';
 import { uid } from './id';
 
@@ -10,6 +20,8 @@ const KEY = {
   shifts: 'design-admin:shifts',
   kpiTargets: 'design-admin:kpiTargets',
   session: 'design-admin:session',
+  careerProgress: 'design-admin:careerProgress',
+  customGoals: 'design-admin:customGoals',
 };
 
 // 主管通行碼（內部工具用，非真正資安；可自行修改）
@@ -70,6 +82,12 @@ export const saveShifts = (v: Shift[]) => write(KEY.shifts, v);
 
 export const getKpiTargets = () => read<KpiTarget[]>(KEY.kpiTargets, []);
 export const saveKpiTargets = (v: KpiTarget[]) => write(KEY.kpiTargets, v);
+
+export const getCareerProgress = () => read<CareerProgress>(KEY.careerProgress, {});
+export const saveCareerProgress = (v: CareerProgress) => write(KEY.careerProgress, v);
+
+export const getCustomGoals = () => read<CustomGoal[]>(KEY.customGoals, []);
+export const saveCustomGoals = (v: CustomGoal[]) => write(KEY.customGoals, v);
 
 export const getSession = () => read<Session | null>(KEY.session, null);
 export const saveSession = (v: Session | null) => {
@@ -148,6 +166,26 @@ export function seedIfEmpty(): void {
   saveShifts([...shifts, ...historyShifts]);
 
   saveKpiTargets([{ month, ...DEFAULT_TARGET }]);
+
+  // 職涯地圖：第一階段全完成 + 第二階段部分完成
+  saveCareerProgress({
+    's1-tools': true,
+    's1-template': true,
+    's1-brand': true,
+    's1-naming': true,
+    's2-solo': true,
+    's2-smart': true,
+    's2-detail': true,
+  });
+  saveCustomGoals([
+    {
+      id: uid('g_'),
+      title: '建立個人作品集網站',
+      targetDate: shiftMonth(month, 3) + '-01',
+      done: false,
+      createdAt: now,
+    },
+  ]);
 
   localStorage.setItem(SEED_FLAG, '1');
 }

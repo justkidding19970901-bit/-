@@ -8,6 +8,7 @@ export type PageKey =
   | 'shifts'
   | 'checklist'
   | 'specs'
+  | 'career'
   | 'kpi'
   | 'members';
 
@@ -24,6 +25,7 @@ const NAV: NavItem[] = [
   { key: 'shifts', label: '夜市排班', icon: '🏮' },
   { key: 'checklist', label: '詳情頁檢查清單', icon: '✅' },
   { key: 'specs', label: '上架圖規格', icon: '📐' },
+  { key: 'career', label: '職涯地圖', icon: '🧭' },
   { key: 'kpi', label: 'KPI 目標設定', icon: '🎯', managerOnly: true },
   { key: 'members', label: '成員管理', icon: '👥', managerOnly: true },
 ];
@@ -43,8 +45,8 @@ export const Layout: React.FC<Props> = ({ active, onNavigate, children }) => {
       {/* Sidebar */}
       <aside className="w-56 shrink-0 bg-slate-900 text-slate-200 flex flex-col">
         <div className="px-5 py-5 border-b border-slate-700/60">
-          <div className="font-bold text-white">設計部庶務控管</div>
-          <div className="text-xs text-slate-400 mt-0.5">MonnaCase 墨盾</div>
+          <div className="font-bold text-white">Designer Studio</div>
+          <div className="text-xs text-slate-400 mt-0.5">MonnaCase 墨盾 · 設計部</div>
         </div>
         <nav className="flex-1 py-3">
           {nav.map((n) => (
